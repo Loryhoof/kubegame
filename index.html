@@ -10,9 +10,38 @@
       canvas {
         display: block;
       }
+      #server-id {
+        position: fixed; /* fixed so it stays in place even on scroll */
+        top: 10px; /* a bit of padding from top */
+        left: 10px; /* a bit of padding from left */
+        color: white; /* so it's visible over dark backgrounds */
+        background: rgba(0, 0, 0, 0.5); /* semi-transparent background */
+        padding: 5px 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        border-radius: 5px;
+        z-index: 1000; /* ensure it stays on top */
+        user-select: none; /* prevent accidental text selection */
+      }
+      #player-list {
+        position: fixed; /* fixed so it stays in place even on scroll */
+        top: 40px; /* a bit of padding from top */
+        left: 10px; /* a bit of padding from left */
+        color: white; /* so it's visible over dark backgrounds */
+        background: rgba(0, 0, 0, 0.5); /* semi-transparent background */
+        padding: 5px 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        border-radius: 5px;
+        z-index: 1000; /* ensure it stays on top */
+        user-select: none; /* prevent accidental text selection */
+      }
     </style>
   </head>
   <body>
+    <p id="server-id"></p>
+    <p id="player-list"></p>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
