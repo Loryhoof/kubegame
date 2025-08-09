@@ -23,7 +23,7 @@ export default class World {
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(100, 100, 100, 100),
-      new THREE.MeshStandardMaterial({ color: 0xff0000, wireframe: true })
+      new THREE.MeshStandardMaterial({ color: 0xffffff, wireframe: true })
     );
 
     ground.position.z = -10;
