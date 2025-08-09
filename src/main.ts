@@ -8,6 +8,7 @@ const idElement = document.getElementById("server-id");
 const playerList = document.getElementById("player-list");
 const playerPositionUI = document.getElementById("player-position");
 const playerHealthUI = document.getElementById("player-health");
+const playerCoinsUI = document.getElementById("player-coins");
 
 let localId: string | null = null;
 
@@ -15,6 +16,7 @@ type ClientPlayer = {
   id: string;
   object: THREE.Mesh;
   health: number;
+  coins: number;
 };
 
 type NetworkPlayer = {
@@ -86,6 +88,7 @@ socket.on("connect", () => {
     id: socket.id!,
     object: playerObject,
     health: 100,
+    coins: 0,
   });
 
   if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
@@ -94,39 +97,16 @@ socket.on("connect", () => {
 });
 
 socket.on("initWorld", (data: any) => {
-  const { zones } = data;
+  world.initWorldData(data);
+});
 
-  if (zones) {
-    zones.forEach((zone: any) => {
-      const { width, height, depth, position, quaternion, color } = zone;
-      console.log(width, height, depth, position, quaternion, color);
+socket.on("zoneCreated", (data: any) => {
+  world.createZone(data);
+});
 
-      const zoneMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(width, height, depth),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(color),
-          transparent: true,
-          opacity: 0.4,
-        })
-      );
-
-      const centerX = position.x + width / 2;
-      const centerY = position.y + height / 2;
-      const centerZ = position.z + depth / 2; // if 3D height, or z if in XZ plane
-
-      // send centerX, centerY, centerZ to client as position
-
-      zoneMesh.position.set(centerX, centerY, centerZ);
-      zoneMesh.quaternion.set(
-        quaternion.x,
-        quaternion.y,
-        quaternion.z,
-        quaternion.w
-      );
-
-      scene.add(zoneMesh);
-    });
-  }
+socket.on("zoneRemoved", (uuid: string) => {
+  console.log("want to remove zone");
+  world.removeByUUID(uuid);
 });
 
 socket.on("addPlayer", (playerId: string) => {
@@ -137,6 +117,7 @@ socket.on("addPlayer", (playerId: string) => {
     id: playerId,
     object: playerObject,
     health: 100,
+    coins: 0,
   });
 });
 
@@ -154,12 +135,17 @@ socket.on("updatePlayers", (players: NetworkPlayer) => {
     if (!netPlayer) {
       const playerObject = createPlayerMesh();
       scene.add(playerObject);
-      networkPlayers.set(key, { id: key, object: playerObject, health: 100 });
+      networkPlayers.set(key, {
+        id: key,
+        object: playerObject,
+        health: 100,
+        coins: 0,
+      });
       netPlayer = networkPlayers.get(key)!;
     }
 
     // setting vals
-    const { position, quaternion, color, health }: any = value;
+    const { position, quaternion, color, health, coins }: any = value;
 
     //console.log(value);
     netPlayer.object.position.set(position.x, position.y, position.z);
@@ -174,10 +160,10 @@ socket.on("updatePlayers", (players: NetworkPlayer) => {
     mat.color = new THREE.Color(color);
 
     netPlayer.health = health;
+    netPlayer.coins = coins;
   }
 });
 
-// Helper: make a player mesh
 function createPlayerMesh() {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(1, 1, 1),
@@ -187,7 +173,7 @@ function createPlayerMesh() {
     })
   );
 
-  mesh.castShadow = true;
+  mesh.castShadow = false;
 
   return mesh;
 }
@@ -225,32 +211,8 @@ function updateCameraFollow() {
   cameraDirection.normalize();
 }
 
-// Animation loop
-function animate() {
-  requestAnimationFrame(animate);
-
-  // player
+function updateUI() {
   if (!localId) return;
-  const playerObject = networkPlayers.get(localId)?.object;
-  if (!playerObject) return;
-
-  const payload = {
-    keys: inputManager.getState(),
-    quaternion: camera.quaternion.clone(),
-  };
-
-  // console.log(payload);
-  // console.log(JSON.stringify(payload));
-
-  if (JSON.stringify(payload) !== JSON.stringify(lastSentState)) {
-    socket.emit("playerInput", payload);
-    lastSentState = payload;
-    // console.log(payload);
-  }
-
-  world.update();
-  updateCameraFollow();
-  renderer.render(scene, camera);
 
   if (playerList) {
     playerList.innerHTML = `Players Online: ${networkPlayers.size}`;
@@ -269,7 +231,37 @@ function animate() {
     if (playerHealthUI) {
       playerHealthUI.innerHTML = `${Math.floor(player.health)} HP`;
     }
+
+    if (playerCoinsUI) {
+      playerCoinsUI.innerHTML = `${player.coins} Coins`;
+    }
   }
+}
+
+// Animation loop
+function animate() {
+  requestAnimationFrame(animate);
+
+  // player
+  if (!localId) return;
+  const playerObject = networkPlayers.get(localId)?.object;
+  if (!playerObject) return;
+
+  const payload = {
+    keys: inputManager.getState(),
+    quaternion: camera.quaternion.clone(),
+  };
+
+  if (JSON.stringify(payload) !== JSON.stringify(lastSentState)) {
+    socket.emit("playerInput", payload);
+    lastSentState = payload;
+  }
+
+  world.update();
+  updateCameraFollow();
+  renderer.render(scene, camera);
+
+  updateUI();
 }
 animate();
 

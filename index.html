@@ -62,6 +62,19 @@
         z-index: 1000; /* ensure it stays on top */
         user-select: none; /* prevent accidental text selection */
       }
+      #player-coins {
+        position: fixed; /* fixed so it stays in place even on scroll */
+        top: 130px; /* a bit of padding from top */
+        left: 10px; /* a bit of padding from left */
+        color: white; /* so it's visible over dark backgrounds */
+        background: rgba(0, 0, 0, 0.5); /* semi-transparent background */
+        padding: 5px 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        border-radius: 5px;
+        z-index: 1000; /* ensure it stays on top */
+        user-select: none; /* prevent accidental text selection */
+      }
     </style>
   </head>
   <body>
@@ -69,6 +82,7 @@
     <p id="player-list"></p>
     <p id="player-position"></p>
     <p id="player-health"></p>
+    <p id="player-coins"></p>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
