@@ -23,8 +23,6 @@ export default class World {
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(16 * 2, 16 * 2);
 
-    console.log(texture, "TEXUTREE");
-
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(100, 100, 100, 100),
       new THREE.MeshStandardMaterial({ map: texture })

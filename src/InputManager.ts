@@ -1,6 +1,6 @@
 export default class InputManager {
   private keys: Record<string, boolean> = {};
-  private trackedKeys: string[] = ["w", "a", "s", "d", "shift"];
+  private trackedKeys: string[] = ["w", "a", "s", "d", "shift", "e"];
 
   constructor() {
     this.init();
