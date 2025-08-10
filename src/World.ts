@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+const loader = new THREE.TextureLoader();
+
 export default class World {
   private scene: THREE.Scene;
   private entities: any[];
@@ -16,9 +18,16 @@ export default class World {
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     this.scene.add(ambientLight);
 
+    const texture = loader.load("/green.jpg");
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(16 * 2, 16 * 2);
+
+    console.log(texture, "TEXUTREE");
+
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(100, 100, 100, 100),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, wireframe: true })
+      new THREE.MeshStandardMaterial({ map: texture })
     );
 
     ground.position.z = -10;
@@ -31,7 +40,7 @@ export default class World {
   }
 
   initWorldData(data: any) {
-    const { zones } = data;
+    const { zones, colliders } = data;
     if (zones) {
       zones.forEach((zone: any) => {
         const { id, width, height, depth, position, quaternion, color } = zone;
@@ -59,6 +68,34 @@ export default class World {
 
         this.entities.push({ id: id, mesh: zoneMesh });
         this.scene.add(zoneMesh);
+      });
+    }
+
+    if (colliders) {
+      colliders.forEach((zone: any) => {
+        const { id, width, height, depth, position, quaternion, color } = zone;
+
+        const colliderMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(width, height, depth),
+          new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color),
+          })
+        );
+
+        const centerX = position.x + width / 2;
+        const centerY = position.y + height / 2;
+        const centerZ = position.z + depth / 2;
+
+        colliderMesh.position.set(centerX, centerY, centerZ);
+        colliderMesh.quaternion.set(
+          quaternion.x,
+          quaternion.y,
+          quaternion.z,
+          quaternion.w
+        );
+
+        this.entities.push({ id: id, mesh: colliderMesh });
+        this.scene.add(colliderMesh);
       });
     }
   }

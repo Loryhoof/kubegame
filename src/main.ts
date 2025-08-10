@@ -3,7 +3,7 @@ import World from "./World";
 import { io } from "socket.io-client";
 import InputManager from "./InputManager";
 
-const socket = io("http://localhost:3000/");
+const socket = io("http://192.168.1.102:3000/");
 const idElement = document.getElementById("server-id");
 const playerList = document.getElementById("player-list");
 const playerPositionUI = document.getElementById("player-position");
@@ -34,6 +34,8 @@ let lastSentState = {};
 
 // Scene
 const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x95f2f5);
 
 // Camera
 const camera = new THREE.PerspectiveCamera(
