@@ -90,61 +90,6 @@ socket.on("connect", () => {
   localId = socket.id!;
 
   init();
-
-  //const playerObject = createPlayerMesh();
-  //scene.add(playerObject);
-
-  // networkPlayers.set(socket.id!, {
-  //   id: socket.id!,
-  //   object: playerObject,
-  //   health: 100,
-  //   coins: 0,
-  // });
-
-  // if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
-
-  // localId = socket.id!;
-
-  //   loader.load(
-  //     "/boxman.glb",
-  //     (gltf) => {
-  //       const model = gltf.scene;
-  //       scene.add(model);
-
-  //       mixer = new THREE.AnimationMixer(model);
-  //       console.log(gltf.animations, "ANIMTASS");
-  //       idleAnim = mixer.clipAction(getAnimationByName(gltf.animations, "Idle"));
-  //       walkAnim = mixer.clipAction(
-  //         getAnimationByName(gltf.animations, "WalkNew")
-  //       );
-  //       runAnim = mixer.clipAction(getAnimationByName(gltf.animations, "Run"));
-  //       attackAnim = mixer.clipAction(
-  //         getAnimationByName(gltf.animations, "Attack")
-  //       );
-
-  //       attackAnim.setLoop(THREE.LoopOnce, 1);
-  //       //walkAnim.setEffectiveWeight(0.5);
-  //       attackAnim.setEffectiveWeight(2);
-
-  //       //console.log(model);
-
-  //       networkPlayers.set(socket.id!, {
-  //         id: socket.id!,
-  //         object: model as any,
-  //         health: 100,
-  //         coins: 0,
-  //       });
-
-  //       if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
-
-  //       localId = socket.id!;
-  //     },
-  //     undefined,
-  //     (error) => {
-  //       console.error("Error loading GLB model:", error);
-  //     }
-  //   );
-  // });
 });
 
 socket.on("initWorld", (data: any) => {
@@ -253,31 +198,52 @@ function updateCameraFollow() {
   cameraDirection.normalize();
 }
 
+// function updateUI() {
+//   if (!localId) return;
+
+//   if (playerList) {
+//     playerList.innerHTML = `Players Online: ${networkPlayers.size}`;
+//   }
+
+//   if (playerPositionUI) {
+//     const player = networkPlayers.get(localId);
+//     if (!player) return;
+
+//     playerPositionUI.innerHTML = `
+//     x: ${Math.floor(player.getPosition().x)}
+//     y: ${Math.floor(player.getPosition().y)}
+//     z: ${Math.floor(player.getPosition().z)}
+//     `;
+
+//     if (playerHealthUI) {
+//       playerHealthUI.innerHTML = `${Math.floor(player.health)} HP`;
+//     }
+
+//     if (playerCoinsUI) {
+//       playerCoinsUI.innerHTML = `${player.coins} Coins`;
+//     }
+//   }
+// }
+
 function updateUI() {
   if (!localId) return;
 
-  if (playerList) {
-    playerList.innerHTML = `Players Online: ${networkPlayers.size}`;
-  }
+  const player = networkPlayers.get(localId);
 
-  if (playerPositionUI) {
-    const player = networkPlayers.get(localId);
-    if (!player) return;
+  const eventData = {
+    networkId: localId,
+    position: {
+      x: player?.getPosition().x,
+      y: player?.getPosition().y,
+      z: player?.getPosition().z,
+    },
+    health: player?.health,
+    coins: player?.coins,
+    playerCount: networkPlayers.size,
+  };
 
-    playerPositionUI.innerHTML = `
-    x: ${Math.floor(player.getPosition().x)}
-    y: ${Math.floor(player.getPosition().y)}
-    z: ${Math.floor(player.getPosition().z)}
-    `;
-
-    if (playerHealthUI) {
-      playerHealthUI.innerHTML = `${Math.floor(player.health)} HP`;
-    }
-
-    if (playerCoinsUI) {
-      playerCoinsUI.innerHTML = `${player.coins} Coins`;
-    }
-  }
+  const event = new CustomEvent("player-update", { detail: eventData } as any);
+  window.dispatchEvent(event);
 }
 
 // Animation loop

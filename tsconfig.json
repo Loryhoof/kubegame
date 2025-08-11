@@ -11,7 +11,11 @@
     "rootDir": "src",
     "isolatedModules": true,
     "resolveJsonModule": true,
-    "sourceMap": true
+    "sourceMap": true,
+
+    // 👇 ADD THESE FOR JSX SUPPORT
+    "jsx": "react-jsx", // for React 17+ JSX transform
+    "jsxImportSource": "react" // optional but recommended
   },
   "include": ["src"]
 }
