@@ -2,7 +2,8 @@ import * as THREE from "three";
 import World from "./World";
 import { io } from "socket.io-client";
 import InputManager from "./InputManager";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import ClientPlayer from "./ClientPlayer";
+import { AssetsManager } from "./AssetsManager";
 
 const socket = io("http://192.168.1.102:3000/");
 const idElement = document.getElementById("server-id");
@@ -11,28 +12,16 @@ const playerPositionUI = document.getElementById("player-position");
 const playerHealthUI = document.getElementById("player-health");
 const playerCoinsUI = document.getElementById("player-coins");
 
-function getAnimationByName(animations: any[], name: string) {
-  return animations.find((clip) => clip.name === name);
-}
-
-let idleAnim: THREE.AnimationAction;
-let walkAnim: THREE.AnimationAction;
-let runAnim: THREE.AnimationAction;
-let attackAnim: THREE.AnimationAction;
-let mixer: any = null;
-
 const clock = new THREE.Clock();
 
 let localId: string | null = null;
 
-const loader = new GLTFLoader();
-
-type ClientPlayer = {
-  id: string;
-  object: THREE.Mesh;
-  health: number;
-  coins: number;
-};
+// type ClientPlayer = {
+//   id: string;
+//   object: THREE.Object3D;
+//   health: number;
+//   coins: number;
+// };
 
 type NetworkPlayer = {
   id: string;
@@ -98,8 +87,12 @@ const inputManager = new InputManager();
 socket.on("connect", () => {
   console.log("Connected with server with id:", socket.id);
 
-  // const playerObject = createPlayerMesh();
-  // scene.add(playerObject);
+  localId = socket.id!;
+
+  init();
+
+  //const playerObject = createPlayerMesh();
+  //scene.add(playerObject);
 
   // networkPlayers.set(socket.id!, {
   //   id: socket.id!,
@@ -112,45 +105,46 @@ socket.on("connect", () => {
 
   // localId = socket.id!;
 
-  loader.load(
-    "/boxman.glb",
-    (gltf) => {
-      const model = gltf.scene;
-      scene.add(model);
+  //   loader.load(
+  //     "/boxman.glb",
+  //     (gltf) => {
+  //       const model = gltf.scene;
+  //       scene.add(model);
 
-      mixer = new THREE.AnimationMixer(model);
-      console.log(gltf.animations, "ANIMTASS");
-      idleAnim = mixer.clipAction(getAnimationByName(gltf.animations, "Idle"));
-      walkAnim = mixer.clipAction(
-        getAnimationByName(gltf.animations, "WalkNew")
-      );
-      runAnim = mixer.clipAction(getAnimationByName(gltf.animations, "Run"));
-      attackAnim = mixer.clipAction(
-        getAnimationByName(gltf.animations, "Attack")
-      );
+  //       mixer = new THREE.AnimationMixer(model);
+  //       console.log(gltf.animations, "ANIMTASS");
+  //       idleAnim = mixer.clipAction(getAnimationByName(gltf.animations, "Idle"));
+  //       walkAnim = mixer.clipAction(
+  //         getAnimationByName(gltf.animations, "WalkNew")
+  //       );
+  //       runAnim = mixer.clipAction(getAnimationByName(gltf.animations, "Run"));
+  //       attackAnim = mixer.clipAction(
+  //         getAnimationByName(gltf.animations, "Attack")
+  //       );
 
-      attackAnim.setLoop(THREE.LoopOnce, 1);
-      //walkAnim.setEffectiveWeight(0.5);
-      attackAnim.setEffectiveWeight(2);
+  //       attackAnim.setLoop(THREE.LoopOnce, 1);
+  //       //walkAnim.setEffectiveWeight(0.5);
+  //       attackAnim.setEffectiveWeight(2);
 
-      //console.log(model);
+  //       //console.log(model);
 
-      networkPlayers.set(socket.id!, {
-        id: socket.id!,
-        object: model as any,
-        health: 100,
-        coins: 0,
-      });
+  //       networkPlayers.set(socket.id!, {
+  //         id: socket.id!,
+  //         object: model as any,
+  //         health: 100,
+  //         coins: 0,
+  //       });
 
-      if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
+  //       if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
 
-      localId = socket.id!;
-    },
-    undefined,
-    (error) => {
-      console.error("Error loading GLB model:", error);
-    }
-  );
+  //       localId = socket.id!;
+  //     },
+  //     undefined,
+  //     (error) => {
+  //       console.error("Error loading GLB model:", error);
+  //     }
+  //   );
+  // });
 });
 
 socket.on("initWorld", (data: any) => {
@@ -172,94 +166,43 @@ type UserActionData = {
 
 socket.on("user_action", (data: UserActionData) => {
   if (data.type == "attack") {
-    attackAnim.stop();
-    attackAnim.play();
+    //attackAnim.stop();
+    //attackAnim.play();
   }
 });
 
 socket.on("addPlayer", (playerId: string) => {
   console.log("Adding player:", playerId);
-  const playerObject = createPlayerMesh();
-  scene.add(playerObject);
-  networkPlayers.set(playerId, {
-    id: playerId,
-    object: playerObject,
-    health: 100,
-    coins: 0,
-  });
+
+  const newPlayer = new ClientPlayer(playerId, "0xffffff", scene);
+
+  networkPlayers.set(playerId, newPlayer);
 });
 
 socket.on("removePlayer", (playerId: string) => {
   console.log("Removing player:", playerId);
   const player = networkPlayers.get(playerId);
   if (!player) return;
-  scene.remove(player.object);
+  player.remove();
   networkPlayers.delete(playerId);
 });
 
 socket.on("updatePlayers", (players: NetworkPlayer) => {
   for (const [key, value] of Object.entries(players)) {
     let netPlayer = networkPlayers.get(key);
+
     if (!netPlayer) {
-      const playerObject = createPlayerMesh();
-      scene.add(playerObject);
-      networkPlayers.set(key, {
-        id: key,
-        object: playerObject,
-        health: 100,
-        coins: 0,
-      });
+      const newPlayer = new ClientPlayer(socket.id!, "0xffffff", scene);
+      networkPlayers.set(key, newPlayer);
       netPlayer = networkPlayers.get(key)!;
     }
 
-    // setting vals
-    const { position, quaternion, color, health, coins, velocity }: any = value;
-
-    const velMag = new THREE.Vector3(
-      velocity.x,
-      velocity.y,
-      velocity.z
-    ).length();
-
-    netPlayer.object.position.set(position.x, position.y, position.z);
-    netPlayer.object.quaternion.set(
-      quaternion.x,
-      quaternion.y,
-      quaternion.z,
-      quaternion.w
-    );
-
-    // animation shit
-
-    const fadeDuration = 0.1;
-
-    if (walkAnim && idleAnim) {
-      if (velMag > 0) {
-        // switch to walk
-        if (!walkAnim.isRunning()) {
-          walkAnim.reset().play();
-          idleAnim.crossFadeTo(walkAnim, fadeDuration, false);
-        }
-      } else {
-        // switch to idlex
-        if (!idleAnim.isRunning()) {
-          idleAnim.reset().play();
-          walkAnim.crossFadeTo(idleAnim, fadeDuration, false);
-        }
-      }
+    if (!netPlayer) {
+      console.log("no netplayer", socket.id);
+      return;
     }
 
-    // const mat = netPlayer.object.material as THREE.MeshStandardMaterial;
-    // mat.color = new THREE.Color(color);
-
-    netPlayer.object.traverse((item) => {
-      if (item instanceof THREE.SkinnedMesh) {
-        item.material.color = new THREE.Color(color);
-      }
-    });
-
-    netPlayer.health = health;
-    netPlayer.coins = coins;
+    netPlayer.setState(value as any);
   }
 });
 
@@ -283,7 +226,7 @@ function updateCameraFollow() {
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  const playerPos = player.object.position;
+  const playerPos = player.getPosition();
 
   const distance = 5;
   const height = 1;
@@ -322,9 +265,9 @@ function updateUI() {
     if (!player) return;
 
     playerPositionUI.innerHTML = `
-    x: ${Math.floor(player.object.position.x)}
-    y: ${Math.floor(player.object.position.y)}
-    z: ${Math.floor(player.object.position.z)}
+    x: ${Math.floor(player.getPosition().x)}
+    y: ${Math.floor(player.getPosition().y)}
+    z: ${Math.floor(player.getPosition().z)}
     `;
 
     if (playerHealthUI) {
@@ -345,7 +288,7 @@ function animate() {
 
   // player
   if (!localId) return;
-  const playerObject = networkPlayers.get(localId)?.object;
+  const playerObject = networkPlayers.get(localId);
   if (!playerObject) return;
 
   const payload = {
@@ -360,13 +303,32 @@ function animate() {
 
   world.update();
   updateCameraFollow();
+
+  networkPlayers.forEach((player: ClientPlayer) => {
+    player.update(delta);
+  });
+
   renderer.render(scene, camera);
-
-  if (mixer) mixer.update(delta);
-
   updateUI();
 }
-animate();
+
+async function init() {
+  const assetsManager = AssetsManager.instance;
+  await assetsManager.loadAll();
+
+  const player = new ClientPlayer(socket.id!, "0xffffff", scene);
+
+  if (!socket.id) {
+    console.log("no socket id i.e. no connection");
+    return;
+  }
+
+  networkPlayers.set(socket.id, player);
+
+  if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
+
+  animate();
+}
 
 // Resize
 window.addEventListener("resize", () => {
