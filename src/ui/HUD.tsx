@@ -6,6 +6,7 @@ type EventData = {
   coins: number;
   health: number;
   playerCount: number;
+  ping: number;
 };
 
 export default function HUD() {
@@ -15,6 +16,7 @@ export default function HUD() {
   const [position, setPosition] = useState({ x: 0, y: 0, z: 0 });
   const [health, setHealth] = useState(100);
   const [coins, setCoins] = useState(0);
+  const [ping, setPing] = useState(0);
 
   useEffect(() => {
     // Define the event handler with a typed CustomEvent
@@ -25,6 +27,7 @@ export default function HUD() {
       setCoins(eventDetails.coins);
       setHealth(eventDetails.health);
       setPlayerCount(eventDetails.playerCount);
+      setPing(eventDetails.ping);
     }
 
     // Add event listener with type cast
@@ -51,6 +54,7 @@ export default function HUD() {
         color: "white",
       }}
     >
+      <div style={boxStyle}>Ping: {ping} ms</div>
       <div style={boxStyle}>{networkId}</div>
       {/* <div style={boxStyle}>Players: {players.join(", ")}</div> */}
       <div style={boxStyle}>{playerCount} Online</div>

@@ -21,6 +21,8 @@ type NetworkPlayer = {
   health: number;
 };
 
+let ping = 0;
+
 const networkPlayers = new Map<string, ClientPlayer>();
 
 let lastSentState = {};
@@ -81,6 +83,16 @@ socket.on("connect", () => {
   localId = socket.id!;
 
   init();
+});
+
+setInterval(() => {
+  const start = Date.now();
+  socket.emit("pingCheck", start);
+}, 3000);
+
+// Listen for pong reply from server
+socket.on("pongCheck", (startTime: number) => {
+  ping = Date.now() - startTime;
 });
 
 socket.on("initWorld", (data: any) => {
@@ -241,6 +253,7 @@ function updateUI() {
     health: player?.health,
     coins: player?.coins,
     playerCount: networkPlayers.size,
+    ping: ping,
   };
 
   const event = new CustomEvent("player-update", { detail: eventData } as any);
