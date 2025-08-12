@@ -38,7 +38,7 @@ export default class World {
   }
 
   initWorldData(data: any) {
-    const { zones, colliders } = data;
+    const { zones, colliders, entities } = data;
     if (zones) {
       zones.forEach((zone: any) => {
         const { id, width, height, depth, position, quaternion, color } = zone;
@@ -52,11 +52,7 @@ export default class World {
           })
         );
 
-        const centerX = position.x + width / 2;
-        const centerY = position.y + height / 2;
-        const centerZ = position.z + depth / 2;
-
-        zoneMesh.position.set(centerX, centerY, centerZ);
+        zoneMesh.position.set(position.x, position.y, position.z);
         zoneMesh.quaternion.set(
           quaternion.x,
           quaternion.y,
@@ -80,11 +76,7 @@ export default class World {
           })
         );
 
-        const centerX = position.x + width / 2;
-        const centerY = position.y + height / 2;
-        const centerZ = position.z + depth / 2;
-
-        colliderMesh.position.set(centerX, centerY, centerZ);
+        colliderMesh.position.set(position.x, position.y, position.z);
         colliderMesh.quaternion.set(
           quaternion.x,
           quaternion.y,
@@ -94,6 +86,30 @@ export default class World {
 
         this.entities.push({ id: id, mesh: colliderMesh });
         this.scene.add(colliderMesh);
+      });
+    }
+
+    if (entities) {
+      entities.forEach((zone: any) => {
+        const { id, width, height, depth, position, quaternion, color } = zone;
+
+        const entityMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(width, height, depth),
+          new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color),
+          })
+        );
+
+        entityMesh.position.set(position.x, position.y, position.z);
+        entityMesh.quaternion.set(
+          quaternion.x,
+          quaternion.y,
+          quaternion.z,
+          quaternion.w
+        );
+
+        this.entities.push({ id: id, mesh: entityMesh });
+        this.scene.add(entityMesh);
       });
     }
   }

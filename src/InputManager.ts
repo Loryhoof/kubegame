@@ -1,6 +1,6 @@
 export default class InputManager {
   private keys: Record<string, boolean> = {};
-  private trackedKeys: string[] = ["w", "a", "s", "d", "shift", "e"];
+  private trackedKeys: string[] = ["w", "a", "s", "d", "shift", "e", " "];
 
   constructor() {
     this.init();
@@ -17,6 +17,7 @@ export default class InputManager {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    console.log(e.key);
     const key = e.key.toLowerCase();
     if (this.keys.hasOwnProperty(key)) {
       this.keys[key] = true;
