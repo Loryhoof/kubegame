@@ -5,7 +5,7 @@ import InputManager from "./InputManager";
 import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
 
-const socket = io("http://192.168.1.102:3000/");
+const socket = io("http://167.71.215.45:3000/");
 const idElement = document.getElementById("server-id");
 
 const clock = new THREE.Clock();
