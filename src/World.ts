@@ -1,14 +1,15 @@
 import * as THREE from "three";
+import Interactable from "./Interactable";
 
 const loader = new THREE.TextureLoader();
 
 export default class World {
   private scene: THREE.Scene;
-  private entities: any[];
+  private entities: any[] = [];
+  public interactables: any[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
-    this.entities = [];
   }
 
   init() {
@@ -21,12 +22,15 @@ export default class World {
     const texture = loader.load("/green.jpg");
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(16 * 2, 16 * 2);
+    texture.repeat.set(16 * 12, 16 * 12);
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(100, 100, 100, 100),
+      new THREE.PlaneGeometry(1000, 1000, 1, 1),
       new THREE.MeshStandardMaterial({ map: texture })
     );
+
+    const fog = new THREE.FogExp2(0x95f2f5, 0.0025);
+    this.scene.fog = fog;
 
     ground.position.z = -10;
     ground.position.y = -0.5;
@@ -35,10 +39,42 @@ export default class World {
     ground.receiveShadow = true;
 
     this.scene.add(ground);
+
+    // this.createInteractable(
+    //   new THREE.Mesh(
+    //     new THREE.BoxGeometry(1, 1, 1),
+    //     new THREE.MeshStandardMaterial({ color: 0xff0000 })
+    //   ),
+    //   new THREE.Vector3(10, 0, 10),
+    //   new THREE.Quaternion()
+    // );
+
+    // this.createInteractable(
+    //   new THREE.Mesh(
+    //     new THREE.BoxGeometry(1, 1, 1),
+    //     new THREE.MeshStandardMaterial({ color: 0xff0000 })
+    //   ),
+    //   new THREE.Vector3(10, 0, 20),
+    //   new THREE.Quaternion()
+    // );
   }
 
+  getScene() {
+    return this.scene;
+  }
+
+  // createInteractable(
+  //   object: THREE.Object3D,
+  //   position: THREE.Vector3,
+  //   quaternion: THREE.Quaternion
+  // ) {
+  //   const interactable = new Interactable(this, object, position, quaternion);
+  //   this.scene.add(interactable.getObject());
+  //   this.interactables.push(interactable);
+  // }
+
   initWorldData(data: any) {
-    const { zones, colliders, entities } = data;
+    const { zones, colliders, entities, interactables } = data;
     if (zones) {
       zones.forEach((zone: any) => {
         const { id, width, height, depth, position, quaternion, color } = zone;
@@ -112,6 +148,32 @@ export default class World {
         this.scene.add(entityMesh);
       });
     }
+
+    if (interactables) {
+      interactables.forEach((interactable: any) => {
+        const { id, position, quaternion } = interactable;
+
+        const interactableMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0xff0000),
+            opacity: 0.6,
+            transparent: true,
+          })
+        );
+
+        interactableMesh.position.set(position.x, position.y, position.z);
+        interactableMesh.quaternion.set(
+          quaternion.x,
+          quaternion.y,
+          quaternion.z,
+          quaternion.w
+        );
+
+        this.interactables.push({ id: id, mesh: interactableMesh });
+        this.scene.add(interactableMesh);
+      });
+    }
   }
 
   createZone(data: any) {
@@ -141,6 +203,30 @@ export default class World {
     this.scene.add(zoneMesh);
   }
 
+  createInteractable(data: any) {
+    const { id, position, quaternion } = data;
+
+    const interactableMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0xff0000),
+        opacity: 0.6,
+        transparent: true,
+      })
+    );
+
+    interactableMesh.position.set(position.x, position.y, position.z);
+    interactableMesh.quaternion.set(
+      quaternion.x,
+      quaternion.y,
+      quaternion.z,
+      quaternion.w
+    );
+
+    this.interactables.push({ id: id, mesh: interactableMesh });
+    this.scene.add(interactableMesh);
+  }
+
   removeByUUID(uuid: string) {
     // Find the index of the entity with matching id
     const index = this.entities.findIndex((entity) => entity.id === uuid);
@@ -151,7 +237,20 @@ export default class World {
     }
   }
 
+  removeInteractableByUUID(uuid: string) {
+    // Find the index of the entity with matching id
+    const index = this.interactables.findIndex(
+      (interactable) => interactable.id === uuid
+    );
+    if (index !== -1) {
+      const interactable = this.interactables[index];
+      this.scene.remove(interactable.mesh); // Remove mesh from scene
+      this.interactables.splice(index, 1); // Remove entity from array
+    }
+  }
+
   update() {
+    // this.interactables.forEach((item) => {});
     // this.entities.forEach((entity: Entity) => {
     //   entity.update();
     // });

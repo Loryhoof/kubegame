@@ -26,6 +26,8 @@ class ClientPlayer {
   private dummy: THREE.Object3D = new THREE.Object3D();
   private hasInit: boolean = false;
 
+  public boundingBox: THREE.Box3;
+
   public readonly animations: Map<string, THREE.AnimationAction>;
 
   constructor(networkId: string, color: string, scene: THREE.Scene) {
@@ -54,6 +56,8 @@ class ClientPlayer {
     this.dummy.add(this.model);
 
     this.animations.get("Idle")?.play();
+
+    this.boundingBox = new THREE.Box3();
   }
 
   setPosition(position: THREE.Vector3) {

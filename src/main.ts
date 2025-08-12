@@ -7,21 +7,10 @@ import { AssetsManager } from "./AssetsManager";
 
 const socket = io("http://192.168.1.102:3000/");
 const idElement = document.getElementById("server-id");
-const playerList = document.getElementById("player-list");
-const playerPositionUI = document.getElementById("player-position");
-const playerHealthUI = document.getElementById("player-health");
-const playerCoinsUI = document.getElementById("player-coins");
 
 const clock = new THREE.Clock();
 
 let localId: string | null = null;
-
-// type ClientPlayer = {
-//   id: string;
-//   object: THREE.Object3D;
-//   health: number;
-//   coins: number;
-// };
 
 type NetworkPlayer = {
   id: string;
@@ -38,6 +27,8 @@ let lastSentState = {};
 
 // Scene
 const scene = new THREE.Scene();
+
+let wantsToInteract = false;
 
 scene.background = new THREE.Color(0x95f2f5);
 
@@ -94,15 +85,25 @@ socket.on("connect", () => {
 
 socket.on("initWorld", (data: any) => {
   world.initWorldData(data);
+  console.log(data);
 });
 
 socket.on("zoneCreated", (data: any) => {
   world.createZone(data);
 });
 
+socket.on("interactableCreated", (data: any) => {
+  world.createInteractable(data);
+});
+
 socket.on("zoneRemoved", (uuid: string) => {
   console.log("want to remove zone");
   world.removeByUUID(uuid);
+});
+
+socket.on("interactableRemoved", (uuid: string) => {
+  console.log("want to remove interactable");
+  world.removeInteractableByUUID(uuid);
 });
 
 type UserActionData = {
@@ -244,6 +245,15 @@ function updateUI() {
 
   const event = new CustomEvent("player-update", { detail: eventData } as any);
   window.dispatchEvent(event);
+
+  const interactData = {
+    wantsToInteract: wantsToInteract,
+  };
+
+  const interactEvent = new CustomEvent("ui-update", {
+    detail: interactData,
+  });
+  window.dispatchEvent(interactEvent);
 }
 
 // Animation loop
@@ -274,8 +284,39 @@ function animate() {
     player.update(delta);
   });
 
+  const localPlayer = networkPlayers.get(localId);
+
+  if (localPlayer) {
+    checkPlayerInteractables(localPlayer);
+  }
+
   renderer.render(scene, camera);
   updateUI();
+}
+
+function checkPlayerInteractables(player: ClientPlayer) {
+  let closestInteractable = null;
+  let minDist = Infinity;
+
+  type InteractableType = { id: string; mesh: THREE.Mesh };
+
+  const interactables = world.interactables as InteractableType[];
+
+  for (const interactable of interactables) {
+    const dist = player.getPosition().distanceTo(interactable.mesh.position);
+    if (dist < minDist) {
+      minDist = dist;
+      closestInteractable = interactable;
+    }
+  }
+
+  // console.log(closestInteractable, minDist);
+
+  if (minDist <= 1.5) {
+    wantsToInteract = true;
+  } else {
+    wantsToInteract = false;
+  }
 }
 
 async function init() {

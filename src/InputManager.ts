@@ -17,7 +17,6 @@ export default class InputManager {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
-    console.log(e.key);
     const key = e.key.toLowerCase();
     if (this.keys.hasOwnProperty(key)) {
       this.keys[key] = true;
