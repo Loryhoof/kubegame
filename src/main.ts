@@ -4,8 +4,8 @@ import { io } from "socket.io-client";
 import InputManager from "./InputManager";
 import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
+const socket = io("https://kevinklatt.de");
 
-const socket = io("https://167.71.215.45");
 const idElement = document.getElementById("server-id");
 
 const clock = new THREE.Clock();
