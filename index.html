@@ -2,19 +2,49 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>Three.js + TypeScript + Vite</title>
     <style>
+      html,
       body {
         margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        background: black; /* Matches Three.js background */
+        overflow: hidden;
+        touch-action: none;
       }
+
       canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         display: block;
       }
     </style>
+    <link href="/src/index.css" rel="stylesheet" />
   </head>
   <body>
     <div id="react-root"></div>
+
     <script type="module" src="/src/main.ts"></script>
     <script type="module" src="/src/ui/react-main.tsx"></script>
+
+    <script>
+      // Prevent iOS from bouncing/scrolling
+      document.addEventListener(
+        "touchmove",
+        function (event) {
+          event.preventDefault();
+        },
+        { passive: false }
+      );
+    </script>
   </body>
 </html>
