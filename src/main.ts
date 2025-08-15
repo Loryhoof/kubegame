@@ -8,6 +8,8 @@ import { getRandomFromArray } from "./utils";
 import AudioManager from "./AudioManager";
 const socket = io((import.meta as any).env.VITE_SOCKET_URL);
 
+console.log("Logging url", (import.meta as any).env.VITE_SOCKET_URL);
+
 const idElement = document.getElementById("server-id");
 
 const clock = new THREE.Clock();
