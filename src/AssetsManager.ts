@@ -49,9 +49,14 @@ export class AssetsManager {
     gltf.animations.forEach((clip: THREE.AnimationClip) => {
       for (let i = clip.tracks.length - 1; i >= 0; i--) {
         const track = clip.tracks[i];
+
+        // Keep single-frame tracks — they define static poses
+        if (track.times.length === 1) {
+          continue;
+        }
+
         const numElements = track.values.length / track.times.length;
 
-        // Calculate total change across all keyframes
         let delta = 0;
         for (let e = 0; e < numElements; e++) {
           const valuesForElement = track.values.filter(
@@ -62,7 +67,6 @@ export class AssetsManager {
           delta += Math.abs(max - min);
         }
 
-        // Remove if no actual change
         if (delta === 0) {
           clip.tracks.splice(i, 1);
         }

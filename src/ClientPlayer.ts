@@ -31,14 +31,10 @@ class ClientPlayer {
   private keys: Record<string, boolean> = {};
 
   public boundingBox: THREE.Box3;
-
   public readonly animations: Map<string, THREE.AnimationAction>;
-
   public wantsToAttack: boolean = false;
   public isAttacking: boolean = false;
-
   private currentAnimation: string | null = null;
-
   private isLocalPlayer: boolean = false;
 
   constructor(networkId: string, color: string, scene: THREE.Scene) {
@@ -95,42 +91,26 @@ class ClientPlayer {
       ],
     ]);
 
-    //this.animations.get("WalkNew")?.play();
-
-    // this.animations.get("Melee")?.setEffectiveWeight
-
-    // this.mixer.addEventListener("loop", (e) => {
-    //   console.log(e.action);
-    //   if (e.action == this.animations.get("MeleeMotion"))
-    //     this.isAttacking = true;
-    // });
-
     this.mixer.addEventListener("finished", (e) => {
-      if (e.action === this.animations.get("MeleeMotion"))
-        this.isAttacking = false;
-
-      if (e.action === this.animations.get("MeleeMotion_2"))
+      if (
+        e.action === this.animations.get("MeleeMotion") ||
+        e.action === this.animations.get("MeleeMotion_2")
+      )
         this.isAttacking = false;
     });
 
-    // Add to scene
     this.scene.add(this.dummy);
     this.dummy.add(this.model);
-
     this.boundingBox = new THREE.Box3();
 
-    // Play default
-    //this.playExclusiveAnimation("Idle");
-    //this.playExclusiveAnimation("Walk_Lower");
-    this.animations.get("Idle")?.play();
+    // Play default animations
+    this.animations.get("Idle")!.play();
     this.animations.get("Walk_Lower")!.play();
     this.animations.get("Walk_Upper")!.play();
-
     this.animations.get("Strave_Walk_Left")!.play();
     this.animations.get("Strave_Walk_Right")!.play();
   }
 
-  // --- Position/Rotation Methods ---
   setPosition(position: THREE.Vector3) {
     this.dummy.position.copy(position);
   }
@@ -155,7 +135,6 @@ class ClientPlayer {
     this.scene.remove(this.dummy);
   }
 
-  // --- State Sync ---
   setState(state: StateData) {
     const { position, quaternion, color, health, coins, velocity, keys } =
       state;
@@ -165,9 +144,7 @@ class ClientPlayer {
     this.velocity.copy(velocity);
     this.health = health;
     this.dummy.position.copy(position);
-
     this.keys = keys;
-    console.log(this.keys);
 
     // Smooth rotation
     this.dummy.quaternion.slerp(
@@ -203,154 +180,105 @@ class ClientPlayer {
     }
   }
 
-  // --- Animation Control ---
-  private playExclusiveAnimation(
-    name: string,
-    fadeDuration: number = 0.1,
-    loop: THREE.AnimationActionLoopStyles = THREE.LoopRepeat,
-    reps: number = Infinity
-  ) {
-    if (this.currentAnimation === name) return; // Already playing
-
-    const newAnim = this.animations.get(name);
-    if (!newAnim) return;
-
-    newAnim.reset().setLoop(loop, reps).play();
-
-    // Crossfade from currently playing animations
-    // this.animations.forEach((anim, key) => {
-    //   if (key !== name && anim.isRunning()) {
-    //     anim.crossFadeTo(newAnim, fadeDuration, false);
-    //   }
-    // });
-
-    this.currentAnimation = name;
-  }
-
-  updateAudio() {
-    const audio = AudioManager.instance;
-
-    // if (input.isJustPressed(" ")) {
-    //   audio.playAudio("huh_1", 0.05);
-    // }
-
-    // if (input.isJustPressed("e")) audio.playAudio("pickup");
-
-    // if (input.isJustPressed())
-  }
-
   playAnimation(name: string) {
     const anim = this.animations.get(name);
-
     if (!anim) return;
 
-    if (anim == this.animations.get("MeleeMotion")) {
-      //AudioManager.instance.playAudio("huh_1", 0.05);
+    if (name === "MeleeMotion" || name === "MeleeMotion_2") {
       AudioManager.instance.playAudio(
         getRandomFromArray(["whoosh_1", "whoosh_2", "whoosh_3"]),
         0.05
       );
       this.isAttacking = true;
 
-      this.animations.get("MeleeMotion")?.setEffectiveWeight(1);
-      this.animations.get("MeleeMotion_2")?.setEffectiveWeight(0);
-
-      if (this.animations.get("MeleeMotion_2")?.isRunning()) {
-        this.animations.get("MeleeMotion_2")?.crossFadeTo(anim, 0.2);
-      }
+      // Set exclusive weight with smooth crossfade
+      const other =
+        name === "MeleeMotion"
+          ? this.animations.get("MeleeMotion_2")
+          : this.animations.get("MeleeMotion");
+      other?.crossFadeTo(anim, 0.2, false);
+      anim
+        .setEffectiveWeight(1)
+        .play()
+        .reset()
+        .setLoop(THREE.LoopOnce, Infinity).clampWhenFinished = true;
+      return;
     }
 
-    if (anim == this.animations.get("MeleeMotion_2")) {
-      //AudioManager.instance.playAudio("huh_1", 0.05);
-      AudioManager.instance.playAudio(
-        getRandomFromArray(["whoosh_1", "whoosh_2", "whoosh_3"]),
-        0.05
-      );
-      this.isAttacking = true;
-      this.animations.get("MeleeMotion_2")?.setEffectiveWeight(1);
-      this.animations.get("MeleeMotion")?.setEffectiveWeight(0);
-
-      if (this.animations.get("MeleeMotion")?.isRunning()) {
-        this.animations.get("MeleeMotion")?.crossFadeTo(anim, 0.2);
-      }
-    }
-
-    anim.play().reset().setLoop(THREE.LoopOnce, Infinity);
-    anim.clampWhenFinished = true;
+    anim.play().reset().setLoop(THREE.LoopRepeat, Infinity);
   }
 
-  private updateAnimationState() {
+  private interpolateWeight(
+    action: THREE.AnimationAction | undefined,
+    target: number,
+    delta: number,
+    speed: number = 10
+  ) {
+    if (!action) return;
+    const current = action.getEffectiveWeight();
+    action.setEffectiveWeight(
+      THREE.MathUtils.lerp(current, target, delta * speed)
+    );
+  }
+
+  private updateAnimationState(delta: number) {
     const keys = this.isLocalPlayer
       ? InputManager.instance.getState()
       : this.keys;
-
-    const straving = keys.mouseRight;
-
-    const velMag = this.velocity.length();
-
-    const walkLower = this.animations.get("Walk_Lower");
-    const walkUpper = this.animations.get("Walk_Upper");
-    const meleeMotion = this.animations.get("MeleeMotion");
-
-    const straveWalkLeft = this.animations.get("Strave_Walk_Left");
-    const straveWalkRight = this.animations.get("Strave_Walk_Right");
+    const isStrafing = keys.mouseRight;
+    const speedFactor = keys.shift ? 1.5 : 1;
+    const moving = this.velocity.length() > 0.01;
 
     const idle = this.animations.get("Idle");
-
-    const speedFactor = keys.shift ? 1.5 : 1;
-
-    // if (keys.mouseLeft) {
-    //   const animList = ["MeleeMotion", "MeleeMotion_2"];
-
-    //   this.playAnimation(getRandomFromArray(animList));
-    // }
+    const walkLower = this.animations.get("Walk_Lower");
+    const walkUpper = this.animations.get("Walk_Upper");
+    const strafeLeft = this.animations.get("Strave_Walk_Left");
+    const strafeRight = this.animations.get("Strave_Walk_Right");
 
     if (this.isAttacking) {
-      idle!.setEffectiveWeight(0);
-      walkUpper!.setEffectiveWeight(0);
+      this.interpolateWeight(idle, 0, delta);
+      this.interpolateWeight(walkUpper, 0, delta);
     }
 
-    if (velMag > 0.01) {
-      if (!this.isAttacking) {
-        walkUpper?.setEffectiveWeight(1).setEffectiveTimeScale(speedFactor);
-      }
+    if (moving) {
+      if (!this.isAttacking)
+        this.interpolateWeight(walkUpper, 1, delta * speedFactor);
 
-      if (straving) {
-        walkLower?.setEffectiveWeight(0);
+      if (isStrafing) {
+        this.interpolateWeight(walkLower, 0, delta);
         if (keys.a) {
-          straveWalkRight?.setEffectiveWeight(0);
-          straveWalkLeft
-            ?.setEffectiveWeight(1)
-            .setEffectiveTimeScale(speedFactor);
+          this.interpolateWeight(strafeLeft, 1, delta * speedFactor);
+          this.interpolateWeight(strafeRight, 0, delta);
         } else if (keys.d) {
-          straveWalkLeft?.setEffectiveWeight(0);
-          straveWalkRight
-            ?.setEffectiveWeight(1)
-            .setEffectiveTimeScale(speedFactor);
+          this.interpolateWeight(strafeRight, 1, delta * speedFactor);
+          this.interpolateWeight(strafeLeft, 0, delta);
         } else {
-          straveWalkLeft?.setEffectiveWeight(0);
-          straveWalkRight?.setEffectiveWeight(0);
-          walkLower?.setEffectiveWeight(1).setEffectiveWeight(speedFactor);
+          this.interpolateWeight(walkLower, 1, delta * speedFactor);
+          this.interpolateWeight(strafeLeft, 0, delta);
+          this.interpolateWeight(strafeRight, 0, delta);
         }
       } else {
-        idle?.setEffectiveWeight(0);
-        straveWalkLeft?.setEffectiveWeight(0);
-        straveWalkRight?.setEffectiveWeight(0);
-        walkLower?.setEffectiveWeight(1).setEffectiveTimeScale(speedFactor);
+        this.interpolateWeight(walkLower, 1, delta * speedFactor);
+        this.interpolateWeight(strafeLeft, 0, delta);
+        this.interpolateWeight(strafeRight, 0, delta);
       }
+
+      this.interpolateWeight(idle, 0, delta);
     } else {
-      walkLower?.setEffectiveWeight(0);
-      walkUpper?.setEffectiveWeight(0);
-      straveWalkLeft?.setEffectiveWeight(0);
-      straveWalkRight?.setEffectiveWeight(0);
-      if (!this.isAttacking) {
-        idle?.setEffectiveWeight(1);
-      }
+      this.interpolateWeight(idle, this.isAttacking ? 0 : 1, delta);
+      this.interpolateWeight(walkUpper, 0, delta);
+      this.interpolateWeight(walkLower, 0, delta);
+      this.interpolateWeight(strafeLeft, 0, delta);
+      this.interpolateWeight(strafeRight, 0, delta);
     }
   }
 
+  updateAudio() {
+    // Implement audio triggers here if needed
+  }
+
   update(delta: number) {
-    this.updateAnimationState();
+    this.updateAnimationState(delta);
     this.updateAudio();
     this.mixer.update(delta);
   }
