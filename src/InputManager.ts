@@ -1,3 +1,10 @@
+type MobileEvent = {
+  detail: {
+    x: number;
+    y: number;
+  };
+};
+
 export default class InputManager {
   private keys: Record<string, boolean> = {};
   private prevKeys: Record<string, boolean> = {}; // <-- track last frame's state
@@ -34,6 +41,8 @@ export default class InputManager {
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("mousedown", this.onMouseDown);
     window.addEventListener("mouseup", this.onMouseUp);
+    window.addEventListener("mobile-controls", this.onMobileControls as any);
+    window.addEventListener("mobile-buttons", this.onMobileButtons as any);
   }
 
   // --- Input Event Handlers ---
@@ -59,6 +68,33 @@ export default class InputManager {
   private onMouseUp = (e: MouseEvent) => {
     if (e.button === 0) this.keys["mouseLeft"] = false;
     if (e.button === 2) this.keys["mouseRight"] = false;
+  };
+
+  private onMobileButtons = (e: any) => {
+    const { key, pressed } = e.detail;
+
+    this.keys[key] = pressed;
+  };
+
+  private onMobileControls = (e: MobileEvent) => {
+    const { x, y } = e.detail;
+
+    // Reset keys first
+    this.keys["w"] = false;
+    this.keys["s"] = false;
+    this.keys["a"] = false;
+    this.keys["d"] = false;
+
+    // Threshold to avoid tiny joystick jitters
+    const threshold = 0.2;
+
+    // Vertical movement
+    if (y > threshold) this.keys["s"] = true;
+    if (y < -threshold) this.keys["w"] = true;
+
+    // Horizontal movement
+    if (x > threshold) this.keys["d"] = true;
+    if (x < -threshold) this.keys["a"] = true;
   };
 
   // --- State Query ---

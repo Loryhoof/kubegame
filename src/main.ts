@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 import InputManager from "./InputManager";
 import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
-import { getRandomFromArray } from "./utils";
+import { getRandomFromArray, isMobile } from "./utils";
 import AudioManager from "./AudioManager";
 const socket = io((import.meta as any).env.VITE_SOCKET_URL);
 
@@ -62,11 +62,16 @@ world.init();
 let cameraYaw = 0;
 let cameraPitch = 0;
 const sensitivity = 0.002;
+const mobileSens = 0.08;
+
+let joystickX = 0;
+let joystickY = 0;
 
 // Input manager
 const inputManager = InputManager.instance;
 
 // Pointer lock
+
 document.body.addEventListener("click", () => {
   renderer.domElement.requestPointerLock();
 });
@@ -84,6 +89,13 @@ document.addEventListener("pointermove", (e) => {
     const minPitch = -Math.PI / 12;
     cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
   }
+});
+
+window.addEventListener("camera-controls", (e: any) => {
+  const { x, y } = e.detail; // joystick input, typically -1 to 1
+
+  joystickX = x;
+  joystickY = y;
 });
 
 // Networking
@@ -210,6 +222,19 @@ function updateCameraFollow() {
   if (!localId) return;
   const player = networkPlayers.get(localId);
   if (!player) return;
+
+  // joystick stuff
+
+  if (isMobile()) {
+    // Apply camera rotation continuously based on joystick state
+    cameraYaw -= joystickX * mobileSens;
+    cameraPitch -= joystickY * mobileSens;
+
+    // Clamp pitch
+    const maxPitch = Math.PI / 3;
+    const minPitch = -Math.PI / 12;
+    cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
+  }
 
   const playerPos = player.getPosition();
 
@@ -380,9 +405,17 @@ async function init() {
   worldIsReady = true;
 }
 
-// Resize
-window.addEventListener("resize", () => {
+function resizeRenderer() {
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// Resize
+window.addEventListener("resize", () => {
+  resizeRenderer();
+  // camera.aspect = window.innerWidth / window.innerHeight;
+  // camera.updateProjectionMatrix();
+  // renderer.setSize(window.innerWidth, window.innerHeight);
 });
