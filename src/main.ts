@@ -6,7 +6,7 @@ import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
 import { getRandomFromArray } from "./utils";
 import AudioManager from "./AudioManager";
-const socket = io("http://localhost:3000");
+const socket = io((import.meta as any).env.VITE_SOCKET_URL);
 
 const idElement = document.getElementById("server-id");
 
