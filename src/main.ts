@@ -4,13 +4,17 @@ import { io } from "socket.io-client";
 import InputManager from "./InputManager";
 import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
-const socket = io("https://kevinklatt.de");
+import { getRandomFromArray } from "./utils";
+import AudioManager from "./AudioManager";
+const socket = io((import.meta as any).env.VITE_SOCKET_URL);
 
 const idElement = document.getElementById("server-id");
 
 const clock = new THREE.Clock();
 
 let localId: string | null = null;
+
+let worldIsReady = false;
 
 type NetworkPlayer = {
   id: string;
@@ -43,6 +47,8 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(0, 2, 5);
 
+AudioManager.instance.attachToCamera(camera);
+
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -57,12 +63,19 @@ let cameraYaw = 0;
 let cameraPitch = 0;
 const sensitivity = 0.002;
 
+// Input manager
+const inputManager = InputManager.instance;
+
 // Pointer lock
 document.body.addEventListener("click", () => {
   renderer.domElement.requestPointerLock();
 });
 
 document.addEventListener("pointermove", (e) => {
+  // if(inputManager.getState())
+
+  // if (!inputManager.getState().mouseRight) return;
+
   if (document.pointerLockElement === renderer.domElement) {
     cameraYaw -= e.movementX * sensitivity;
     cameraPitch -= e.movementY * sensitivity;
@@ -72,9 +85,6 @@ document.addEventListener("pointermove", (e) => {
     cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
   }
 });
-
-// Input manager
-const inputManager = new InputManager();
 
 // Networking
 socket.on("connect", () => {
@@ -115,17 +125,32 @@ socket.on("zoneRemoved", (uuid: string) => {
 
 socket.on("interactableRemoved", (uuid: string) => {
   console.log("want to remove interactable");
+  AudioManager.instance.playAudio("pickup", 0.1);
   world.removeInteractableByUUID(uuid);
 });
 
 type UserActionData = {
+  id: string;
   type: string;
+  hasHit: boolean;
 };
 
 socket.on("user_action", (data: UserActionData) => {
   if (data.type == "attack") {
     //attackAnim.stop();
     //attackAnim.play();
+
+    const player = networkPlayers.get(data.id);
+    if (!player) return;
+
+    const animList = ["MeleeMotion", "MeleeMotion_2"];
+
+    player.playAnimation(getRandomFromArray(animList));
+
+    if (data.hasHit) {
+      AudioManager.instance.playAudio("punch_impact", 0.5);
+    }
+    //player.playAnimation("Melee", THREE.LoopOnce);
   }
 });
 
@@ -146,6 +171,8 @@ socket.on("removePlayer", (playerId: string) => {
 });
 
 socket.on("updatePlayers", (players: NetworkPlayer) => {
+  if (!worldIsReady) return;
+
   for (const [key, value] of Object.entries(players)) {
     let netPlayer = networkPlayers.get(key);
 
@@ -305,6 +332,7 @@ function animate() {
 
   renderer.render(scene, camera);
   updateUI();
+  InputManager.instance.update();
 }
 
 function checkPlayerInteractables(player: ClientPlayer) {
@@ -336,7 +364,7 @@ async function init() {
   const assetsManager = AssetsManager.instance;
   await assetsManager.loadAll();
 
-  const player = new ClientPlayer(socket.id!, "0xffffff", scene);
+  const player = new ClientPlayer(socket.id!, "0xffffff", scene, true);
 
   if (!socket.id) {
     console.log("no socket id i.e. no connection");
@@ -348,6 +376,8 @@ async function init() {
   if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
 
   animate();
+
+  worldIsReady = true;
 }
 
 // Resize

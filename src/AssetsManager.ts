@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
+import AudioManager from "./AudioManager";
 
 interface ModelData {
   scene: THREE.Object3D;
@@ -22,7 +23,9 @@ export class AssetsManager {
   private boxmanModel?: ModelData;
 
   async loadAll(): Promise<void> {
-    this.boxmanModel = await this.loadGLTF("/boxman.glb");
+    this.boxmanModel = await this.loadGLTF("/boxman_2.glb");
+
+    await AudioManager.instance.loadAll();
   }
 
   private loadGLTF(url: string): Promise<ModelData> {
@@ -30,6 +33,7 @@ export class AssetsManager {
       new GLTFLoader().load(
         url,
         (gltf) => {
+          this.removeUnusedTracks(gltf);
           resolve({
             scene: gltf.scene,
             animations: gltf.animations,
@@ -38,6 +42,35 @@ export class AssetsManager {
         undefined,
         reject
       );
+    });
+  }
+
+  removeUnusedTracks(gltf: GLTF) {
+    gltf.animations.forEach((clip: THREE.AnimationClip) => {
+      for (let i = clip.tracks.length - 1; i >= 0; i--) {
+        const track = clip.tracks[i];
+
+        // Keep single-frame tracks — they define static poses
+        if (track.times.length === 1) {
+          continue;
+        }
+
+        const numElements = track.values.length / track.times.length;
+
+        let delta = 0;
+        for (let e = 0; e < numElements; e++) {
+          const valuesForElement = track.values.filter(
+            (_, index) => index % numElements === e
+          );
+          const min = Math.min(...valuesForElement);
+          const max = Math.max(...valuesForElement);
+          delta += Math.abs(max - min);
+        }
+
+        if (delta === 0) {
+          clip.tracks.splice(i, 1);
+        }
+      }
     });
   }
 
