@@ -95,20 +95,28 @@ class ClientPlayer {
       if (
         e.action === this.animations.get("MeleeMotion") ||
         e.action === this.animations.get("MeleeMotion_2")
-      )
+      ) {
+        e.action.crossFadeTo(this.animations.get("Idle")!, 0.2);
         this.isAttacking = false;
+      }
     });
 
     this.scene.add(this.dummy);
     this.dummy.add(this.model);
     this.boundingBox = new THREE.Box3();
 
-    // Play default animations
-    this.animations.get("Idle")!.play();
-    this.animations.get("Walk_Lower")!.play();
-    this.animations.get("Walk_Upper")!.play();
-    this.animations.get("Strave_Walk_Left")!.play();
-    this.animations.get("Strave_Walk_Right")!.play();
+    // // Play default animations
+    // this.animations.get("Idle")!.play();
+    // this.animations.get("Walk_Lower")!.play();
+    // this.animations.get("Walk_Upper")!.play();
+    // this.animations.get("Strave_Walk_Left")!.play();
+    // this.animations.get("Strave_Walk_Right")!.play();
+
+    this.animations.forEach((anim, name) => {
+      anim.play();
+      anim.setEffectiveWeight(name === "Idle" ? 1 : 0);
+      anim.setLoop(THREE.LoopRepeat, Infinity);
+    });
   }
 
   setPosition(position: THREE.Vector3) {
@@ -196,7 +204,7 @@ class ClientPlayer {
         name === "MeleeMotion"
           ? this.animations.get("MeleeMotion_2")
           : this.animations.get("MeleeMotion");
-      other?.crossFadeTo(anim, 0.2, false);
+      other?.crossFadeTo(anim, 0, false);
       anim
         .setEffectiveWeight(1)
         .play()
