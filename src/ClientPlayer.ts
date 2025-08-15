@@ -3,6 +3,7 @@ import { getAnimationByName, getRandomFromArray } from "./utils";
 import { AssetsManager } from "./AssetsManager";
 import AudioManager from "./AudioManager";
 import InputManager from "./InputManager";
+import FloatingText from "./FloatingText";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -37,10 +38,18 @@ class ClientPlayer {
   private currentAnimation: string | null = null;
   private isLocalPlayer: boolean = false;
 
-  constructor(networkId: string, color: string, scene: THREE.Scene) {
+  private infoSprite: FloatingText | null = null;
+
+  constructor(
+    networkId: string,
+    color: string,
+    scene: THREE.Scene,
+    isLocalPlayer: boolean = false
+  ) {
     this.networkId = networkId;
     this.color = color;
     this.scene = scene;
+    this.isLocalPlayer = isLocalPlayer;
 
     const modelScene = AssetsManager.instance.getBoxmanClone()?.scene;
     const modelAnims = AssetsManager.instance.getBoxmanClone()
@@ -117,6 +126,11 @@ class ClientPlayer {
       anim.setEffectiveWeight(name === "Idle" ? 1 : 0);
       anim.setLoop(THREE.LoopRepeat, Infinity);
     });
+
+    if (!this.isLocalPlayer) {
+      this.infoSprite = new FloatingText(`${this.health.toString()} / 100`);
+      this.infoSprite.setPositionAbove(this.dummy, 1.5);
+    }
   }
 
   setPosition(position: THREE.Vector3) {
@@ -141,6 +155,35 @@ class ClientPlayer {
 
   remove() {
     this.scene.remove(this.dummy);
+  }
+
+  createFloatingText(): THREE.Sprite {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d")!;
+
+    canvas.width = 256;
+    canvas.height = 64;
+
+    context.font = "Bold 40px Arial";
+    context.fillStyle = "#ffffff";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("Player", canvas.width / 2, canvas.height / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+    });
+
+    const sprite = new THREE.Sprite(material);
+
+    sprite.scale.set(2, 0.5, 1);
+
+    return sprite;
   }
 
   setState(state: StateData) {
@@ -289,6 +332,14 @@ class ClientPlayer {
     this.updateAnimationState(delta);
     this.updateAudio();
     this.mixer.update(delta);
+
+    if (!this.isLocalPlayer && this.infoSprite) {
+      let color = "#ffffff";
+      if (this.health <= 25) {
+        color = "#ff0000";
+      }
+      this.infoSprite.setText(`${this.health} / 100`, color);
+    }
   }
 }
 

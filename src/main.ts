@@ -364,8 +364,7 @@ async function init() {
   const assetsManager = AssetsManager.instance;
   await assetsManager.loadAll();
 
-  const player = new ClientPlayer(socket.id!, "0xffffff", scene);
-  player.setIsLocalPlayer(true);
+  const player = new ClientPlayer(socket.id!, "0xffffff", scene, true);
 
   if (!socket.id) {
     console.log("no socket id i.e. no connection");
