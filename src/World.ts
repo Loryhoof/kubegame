@@ -3,10 +3,28 @@ import Interactable from "./Interactable";
 
 const loader = new THREE.TextureLoader();
 
+type Wheel = {
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  radius: number;
+};
+
+type Vehicle = {
+  id: string;
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  wheels: Wheel[];
+};
+
+type WorldStateData = {
+  vehicles: Vehicle[];
+};
+
 export default class World {
   private scene: THREE.Scene;
   private entities: any[] = [];
   public interactables: any[] = [];
+  public vehicles: any[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -74,7 +92,9 @@ export default class World {
   // }
 
   initWorldData(data: any) {
-    const { zones, colliders, entities, interactables } = data;
+    const { zones, colliders, entities, interactables, vehicles } = data;
+
+    console.log(data, "DATa");
     if (zones) {
       zones.forEach((zone: any) => {
         const { id, width, height, depth, position, quaternion, color } = zone;
@@ -174,6 +194,62 @@ export default class World {
         this.scene.add(interactableMesh);
       });
     }
+
+    if (vehicles) {
+      vehicles.forEach((vehicle: Vehicle) => {
+        console.log(vehicle, "veh");
+        const { id, position, quaternion, wheels } = vehicle;
+
+        const vehicleMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(2, 0.5, 4),
+          new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0xff0000),
+          })
+        );
+
+        vehicleMesh.position.set(position.x, position.y, position.z);
+        vehicleMesh.quaternion.set(
+          quaternion.x,
+          quaternion.y,
+          quaternion.z,
+          quaternion.w
+        );
+
+        let wheelArray = [] as any;
+
+        if (wheels) {
+          wheels.forEach((wheel: Wheel) => {
+            // const wheelMesh = new THREE.Mesh(
+            //   new THREE.CylinderGeometry(wheel.radius, wheel.radius, 0.2),
+            //   new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+            // );
+
+            const wheelMesh = new THREE.Mesh(
+              new THREE.BoxGeometry(0.25, 0.5, 0.5),
+              new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+            );
+
+            vehicleMesh.add(wheelMesh);
+
+            wheelMesh.position.set(
+              wheel.position.x,
+              wheel.position.y,
+              wheel.position.z
+            );
+
+            //wheelMesh.rotation.z = Math.PI / 2;
+            wheelMesh.rotation.z = Math.PI / 2;
+            wheelMesh.quaternion.copy(wheel.quaternion);
+            //wheelMesh.quaternion.copy(wheel.quaternion);
+
+            wheelArray.push(wheelMesh);
+          });
+        }
+
+        this.vehicles.push({ id: id, mesh: vehicleMesh, wheels: wheelArray });
+        this.scene.add(vehicleMesh);
+      });
+    }
   }
 
   createZone(data: any) {
@@ -247,6 +323,33 @@ export default class World {
       this.scene.remove(interactable.mesh); // Remove mesh from scene
       this.interactables.splice(index, 1); // Remove entity from array
     }
+  }
+
+  getObjById(id: string, array: any[]) {
+    for (const item of array) {
+      if (id === item.id) return item;
+    }
+    return null;
+  }
+
+  updateState(data: WorldStateData) {
+    const { vehicles } = data;
+
+    vehicles.forEach((vehicle) => {
+      const obj = this.getObjById(vehicle.id, this.vehicles) as any;
+
+      if (obj && obj.mesh) {
+        obj.mesh.position.copy(vehicle.position);
+        obj.mesh.quaternion.copy(vehicle.quaternion);
+
+        for (let i = 0; i < vehicle.wheels.length; i++) {
+          const wheel = vehicle.wheels[i];
+          const dummyWheel = obj.wheels[i];
+
+          dummyWheel.quaternion.copy(wheel.quaternion);
+        }
+      }
+    });
   }
 
   update() {

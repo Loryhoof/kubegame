@@ -6,7 +6,13 @@ import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
 import { getRandomFromArray, isMobile } from "./utils";
 import AudioManager from "./AudioManager";
-const socket = io((import.meta as any).env.VITE_SOCKET_URL);
+
+import Stats from "stats.js";
+
+const socket = io("http://192.168.1.102:3000/");
+
+const stats = new Stats();
+document.body.appendChild(stats.dom);
 
 const idElement = document.getElementById("server-id");
 
@@ -203,6 +209,10 @@ socket.on("updatePlayers", (players: NetworkPlayer) => {
   }
 });
 
+socket.on("updateWorld", (worldData: any) => {
+  world.updateState(worldData);
+});
+
 function createPlayerMesh() {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(1, 1, 1),
@@ -323,7 +333,8 @@ function updateUI() {
 
 // Animation loop
 function animate() {
-  requestAnimationFrame(animate);
+  //requestAnimationFrame(animate);
+  stats.begin();
 
   const delta = clock.getDelta();
 
@@ -356,8 +367,12 @@ function animate() {
   }
 
   renderer.render(scene, camera);
+
+  stats.end();
   updateUI();
   InputManager.instance.update();
+
+  requestAnimationFrame(animate);
 }
 
 function checkPlayerInteractables(player: ClientPlayer) {
