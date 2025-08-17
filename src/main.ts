@@ -65,9 +65,7 @@ const world = new World(scene);
 world.init();
 
 // Camera control vars
-let cameraYaw = 0;
-let cameraPitch = 0;
-const sensitivity = 0.002;
+
 const mobileSens = 0.08;
 
 let joystickX = 0;
@@ -75,26 +73,12 @@ let joystickY = 0;
 
 // Input manager
 const inputManager = InputManager.instance;
+inputManager.setRenderer(renderer);
 
 // Pointer lock
 
 document.body.addEventListener("click", () => {
   renderer.domElement.requestPointerLock();
-});
-
-document.addEventListener("pointermove", (e) => {
-  // if(inputManager.getState())
-
-  // if (!inputManager.getState().mouseRight) return;
-
-  if (document.pointerLockElement === renderer.domElement) {
-    cameraYaw -= e.movementX * sensitivity;
-    cameraPitch -= e.movementY * sensitivity;
-
-    const maxPitch = Math.PI / 3;
-    const minPitch = -Math.PI / 12;
-    cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
-  }
 });
 
 window.addEventListener("camera-controls", (e: any) => {
@@ -233,27 +217,58 @@ function updateCameraFollow() {
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  // joystick stuff
-
-  if (isMobile()) {
-    // Apply camera rotation continuously based on joystick state
-    cameraYaw -= joystickX * mobileSens;
-    cameraPitch -= joystickY * mobileSens;
-
-    // Clamp pitch
-    const maxPitch = Math.PI / 3;
-    const minPitch = -Math.PI / 12;
-    cameraPitch = Math.max(minPitch, Math.min(maxPitch, cameraPitch));
-  }
-
   const playerPos = player.getPosition();
-
-  const distance = 5;
+  const distance = InputManager.instance.cameraDistance;
   const height = 1;
 
-  const offsetX = distance * Math.sin(cameraYaw) * Math.cos(cameraPitch);
-  const offsetY = height + distance * Math.sin(cameraPitch);
-  const offsetZ = distance * Math.cos(cameraYaw) * Math.cos(cameraPitch);
+  // Sitting locked cam (unless right mouse is pressed)
+  if (player.isSitting && !InputManager.instance.isKeyPressed("mouseRight")) {
+    const localOffset = new THREE.Vector3(0, 3, 6);
+    const offsetWorld = localOffset
+      .clone()
+      .applyQuaternion(player.getQuaternion());
+
+    const playerPosSmoothed = new THREE.Vector3().lerpVectors(
+      camera.position.clone().sub(offsetWorld),
+      player.getPosition(),
+      0.98
+    );
+
+    const targetPos = playerPosSmoothed.clone().add(offsetWorld);
+
+    camera.position.lerp(targetPos, 0.1); // smaller lerp factor for smoother movement
+    camera.lookAt(
+      playerPosSmoothed.x,
+      playerPosSmoothed.y + 1,
+      playerPosSmoothed.z
+    );
+
+    return;
+  }
+
+  // Orbit / Freecam
+  if (isMobile()) {
+    InputManager.instance.cameraYaw -= joystickX * mobileSens;
+    InputManager.instance.cameraPitch -= joystickY * mobileSens;
+  }
+
+  const maxPitch = Math.PI / 3;
+  const minPitch = -Math.PI / 12;
+  InputManager.instance.cameraPitch = Math.max(
+    minPitch,
+    Math.min(maxPitch, InputManager.instance.cameraPitch)
+  );
+
+  const offsetX =
+    distance *
+    Math.sin(InputManager.instance.cameraYaw) *
+    Math.cos(InputManager.instance.cameraPitch);
+  const offsetY =
+    height + distance * Math.sin(InputManager.instance.cameraPitch);
+  const offsetZ =
+    distance *
+    Math.cos(InputManager.instance.cameraYaw) *
+    Math.cos(InputManager.instance.cameraPitch);
 
   const desiredPosition = new THREE.Vector3(
     playerPos.x + offsetX,
@@ -261,16 +276,8 @@ function updateCameraFollow() {
     playerPos.z + offsetZ
   );
 
-  // Smooth only the position change caused by player movement
   camera.position.lerp(desiredPosition, 1.0);
-
   camera.lookAt(playerPos.x, playerPos.y + height, playerPos.z);
-
-  const cameraDirection = new THREE.Vector3();
-  camera.getWorldDirection(cameraDirection);
-
-  cameraDirection.y = 0;
-  cameraDirection.normalize();
 }
 
 // function updateUI() {
@@ -418,6 +425,8 @@ async function init() {
   animate();
 
   worldIsReady = true;
+
+  socket.emit("readyForWorld");
 }
 
 function resizeRenderer() {

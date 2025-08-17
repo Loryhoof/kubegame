@@ -16,6 +16,7 @@ type StateData = {
   health: number;
   coins: number;
   keys: any;
+  isSitting: boolean;
 };
 
 class ClientPlayer {
@@ -37,6 +38,8 @@ class ClientPlayer {
   public isAttacking: boolean = false;
   private currentAnimation: string | null = null;
   private isLocalPlayer: boolean = false;
+
+  public isSitting: boolean = false;
 
   private infoSprite: FloatingText | null = null;
 
@@ -98,6 +101,7 @@ class ClientPlayer {
           getAnimationByName(modelAnims, "Strave_Walk_Right")
         ),
       ],
+      ["Sit", this.mixer.clipAction(getAnimationByName(modelAnims, "Sit"))],
     ]);
 
     this.mixer.addEventListener("finished", (e) => {
@@ -187,8 +191,16 @@ class ClientPlayer {
   }
 
   setState(state: StateData) {
-    const { position, quaternion, color, health, coins, velocity, keys } =
-      state;
+    const {
+      position,
+      quaternion,
+      color,
+      health,
+      coins,
+      velocity,
+      keys,
+      isSitting,
+    } = state;
 
     this.coins = coins;
     this.color = color;
@@ -196,6 +208,7 @@ class ClientPlayer {
     this.health = health;
     this.dummy.position.copy(position);
     this.keys = keys;
+    this.isSitting = isSitting;
 
     // Smooth rotation
     this.dummy.quaternion.slerp(
@@ -285,6 +298,20 @@ class ClientPlayer {
     const walkUpper = this.animations.get("Walk_Upper");
     const strafeLeft = this.animations.get("Strave_Walk_Left");
     const strafeRight = this.animations.get("Strave_Walk_Right");
+    const sit = this.animations.get("Sit");
+
+    if (this.isSitting) {
+      this.interpolateWeight(sit, 1, delta);
+      this.interpolateWeight(idle, 0, delta);
+      this.interpolateWeight(walkUpper, 0, delta);
+      this.interpolateWeight(walkLower, 0, delta);
+      this.interpolateWeight(strafeLeft, 0, delta);
+      this.interpolateWeight(strafeRight, 0, delta);
+
+      return;
+    } else {
+      this.interpolateWeight(sit, 0, delta);
+    }
 
     if (this.isAttacking) {
       this.interpolateWeight(idle, 0, delta);

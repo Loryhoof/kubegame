@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import Interactable from "./Interactable";
+import { AssetsManager } from "./AssetsManager";
 
 const loader = new THREE.TextureLoader();
 
@@ -7,6 +8,7 @@ type Wheel = {
   position: THREE.Vector3;
   quaternion: THREE.Quaternion;
   radius: number;
+  worldPosition: THREE.Vector3;
 };
 
 type Vehicle = {
@@ -200,12 +202,19 @@ export default class World {
         console.log(vehicle, "veh");
         const { id, position, quaternion, wheels } = vehicle;
 
-        const vehicleMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(2, 0.5, 4),
-          new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0xff0000),
-          })
-        );
+        // const vehicleMesh = new THREE.Mesh(
+        //   new THREE.BoxGeometry(2, 0.5, 4),
+        //   new THREE.MeshStandardMaterial({
+        //     color: new THREE.Color(0xff0000),
+        //   })
+        // );
+
+        const vehicleMesh = AssetsManager.instance.getCarClone()?.scene;
+
+        if (!vehicleMesh) {
+          console.log("No vehicle");
+          return;
+        }
 
         vehicleMesh.position.set(position.x, position.y, position.z);
         vehicleMesh.quaternion.set(
@@ -215,35 +224,86 @@ export default class World {
           quaternion.w
         );
 
+        let wheelObjFrontLeft,
+          wheelObjFrontRight,
+          wheelObjRearLeft,
+          wheelObjRearRight;
+
+        let wheelObjArr: any = [];
+
+        vehicleMesh.traverse((item) => {
+          // console.log(item.name);
+
+          if (item.name == "wheel_front_left") wheelObjArr[0] = item;
+
+          if (item.name == "wheel_front_right") wheelObjArr[1] = item;
+
+          if (item.name == "wheel_rear_left") wheelObjArr[2] = item;
+
+          if (item.name == "wheel_rear_right") wheelObjArr[3] = item;
+        });
+
         let wheelArray = [] as any;
 
         if (wheels) {
-          wheels.forEach((wheel: Wheel) => {
-            // const wheelMesh = new THREE.Mesh(
-            //   new THREE.CylinderGeometry(wheel.radius, wheel.radius, 0.2),
-            //   new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-            // );
+          for (let i = 0; i < wheels.length; i++) {
+            const wheel = wheels[i] as Wheel;
 
-            const wheelMesh = new THREE.Mesh(
-              new THREE.BoxGeometry(0.25, 0.5, 0.5),
-              new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-            );
+            const wheelMesh = wheelObjArr[i] as any;
 
-            vehicleMesh.add(wheelMesh);
+            console.log(wheelMesh);
 
-            wheelMesh.position.set(
-              wheel.position.x,
-              wheel.position.y,
-              wheel.position.z
-            );
+            //if (!wheelMesh) return;
 
-            //wheelMesh.rotation.z = Math.PI / 2;
+            wheelMesh.position.copy(wheel.worldPosition);
+
+            wheelMesh.rotation.z = Math.PI / 2;
             wheelMesh.rotation.z = Math.PI / 2;
             wheelMesh.quaternion.copy(wheel.quaternion);
-            //wheelMesh.quaternion.copy(wheel.quaternion);
 
             wheelArray.push(wheelMesh);
-          });
+          }
+          // for (let i = 0; i < wheels.length; i++) {
+          //   const wheel = wheels[i] as Wheel;
+
+          //   const wheelMesh = wheelObjArr[i] as any;
+
+          //   if (!wheelMesh) return;
+
+          //   //vehicle.add(wheelMesh);
+
+          //   //this.scene.add(wheelMesh);
+
+          //   //wheelMesh.position.copy(wheel.position);
+
+          //   //wheelArray.push(wheelMesh);
+          // }
+          // wheels.forEach((wheel: Wheel) => {
+          //   // const wheelMesh = new THREE.Mesh(
+          //   //   new THREE.CylinderGeometry(wheel.radius, wheel.radius, 0.2),
+          //   //   new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+          //   // );
+
+          //   const wheelMesh = new THREE.Mesh(
+          //     new THREE.BoxGeometry(0.25, 0.5, 0.5),
+          //     new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+          //   );
+
+          //   vehicleMesh.add(wheelMesh);
+
+          //   wheelMesh.position.set(
+          //     wheel.position.x,
+          //     wheel.position.y,
+          //     wheel.position.z
+          //   );
+
+          //   //wheelMesh.rotation.z = Math.PI / 2;
+          //   wheelMesh.rotation.z = Math.PI / 2;
+          //   wheelMesh.quaternion.copy(wheel.quaternion);
+          //   //wheelMesh.quaternion.copy(wheel.quaternion);
+
+          //   wheelArray.push(wheelMesh);
+          // });
         }
 
         this.vehicles.push({ id: id, mesh: vehicleMesh, wheels: wheelArray });
@@ -347,6 +407,7 @@ export default class World {
           const dummyWheel = obj.wheels[i];
 
           dummyWheel.quaternion.copy(wheel.quaternion);
+          dummyWheel.position.copy(wheel.worldPosition);
         }
       }
     });
