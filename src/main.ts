@@ -9,7 +9,7 @@ import AudioManager from "./AudioManager";
 
 import Stats from "stats.js";
 
-const socket = io("http://192.168.1.102:3000/");
+const socket = io((import.meta as any).env.VITE_SOCKET_URL);
 
 const stats = new Stats();
 // document.body.appendChild(stats.dom);
