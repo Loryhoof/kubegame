@@ -135,6 +135,10 @@ socket.on("interactableRemoved", (uuid: string) => {
   world.removeInteractableByUUID(uuid);
 });
 
+socket.on("vehicleRemoved", (uuid: string) => {
+  world.removeVehicleByUUID(uuid);
+});
+
 type UserActionData = {
   id: string;
   type: string;

@@ -571,6 +571,15 @@ export default class World {
     }
   }
 
+  removeVehicleByUUID(uuid: string) {
+    const index = this.vehicles.findIndex((vehicle) => vehicle.id === uuid);
+    if (index !== -1) {
+      const vehicle = this.vehicles[index];
+      this.scene.remove(vehicle.mesh); // Remove mesh from scene
+      this.vehicles.splice(index, 1); // Remove entity from array
+    }
+  }
+
   getObjById(id: string, array: any[]) {
     for (const item of array) {
       if (id === item.id) return item;
