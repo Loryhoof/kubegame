@@ -22,6 +22,15 @@ type WorldStateData = {
   vehicles: Vehicle[];
 };
 
+type TerrainData = {
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  heights: ArrayBuffer;
+  nrows: number;
+  ncols: number;
+  scale: THREE.Vector3;
+};
+
 export default class World {
   private scene: THREE.Scene;
   private entities: any[] = [];
@@ -30,6 +39,15 @@ export default class World {
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+  }
+
+  genWorld() {
+    // const ground = new THREE.Mesh(
+    //   new THREE.BoxGeometry(200, 0.5, 200),
+    //   new THREE.MeshStandardMaterial({ color: 0x8f8f8f })
+    // );
+    // ground.position.y = -0.65;
+    // this.scene.add(ground);
   }
 
   init() {
@@ -58,7 +76,7 @@ export default class World {
 
     ground.receiveShadow = true;
 
-    this.scene.add(ground);
+    //this.scene.add(ground);
 
     // this.createInteractable(
     //   new THREE.Mesh(
@@ -77,6 +95,8 @@ export default class World {
     //   new THREE.Vector3(10, 0, 20),
     //   new THREE.Quaternion()
     // );
+
+    this.genWorld();
   }
 
   getScene() {
@@ -94,7 +114,8 @@ export default class World {
   // }
 
   initWorldData(data: any) {
-    const { zones, colliders, entities, interactables, vehicles } = data;
+    const { zones, colliders, entities, interactables, vehicles, terrains } =
+      data;
 
     console.log(data, "DATa");
     if (zones) {
@@ -310,6 +331,171 @@ export default class World {
         this.scene.add(vehicleMesh);
       });
     }
+    if (terrains) {
+      terrains.forEach((terrain: TerrainData) => {
+        const { position, heights, nrows, ncols, scale } = terrain;
+
+        const newHeights = new Float32Array(heights);
+
+        const geometry = new THREE.BufferGeometry();
+        const vertices: number[] = [];
+        const indices: number[] = [];
+        const uvs: number[] = [];
+
+        // Compute half-size to center the mesh
+        const halfWidth = (ncols - 1) / 2;
+        const halfDepth = (nrows - 1) / 2;
+
+        // Row-major vertices, centered around origin
+        for (let i = 0; i < nrows; i++) {
+          for (let j = 0; j < ncols; j++) {
+            const x = i - halfDepth; // i → X axis
+            const y = newHeights[i * ncols + j];
+            const z = j - halfWidth; // j → Z axis
+            vertices.push(x, y, z);
+
+            // UVs normalized to [0,1]
+            const u = j / (ncols - 1);
+            const v = i / (nrows - 1);
+            uvs.push(u, v);
+          }
+        }
+
+        // Create triangle indices
+        for (let i = 0; i < nrows - 1; i++) {
+          for (let j = 0; j < ncols - 1; j++) {
+            const a = i * ncols + j;
+            const b = i * ncols + (j + 1);
+            const c = (i + 1) * ncols + j;
+            const d = (i + 1) * ncols + (j + 1);
+
+            indices.push(a, b, d);
+            indices.push(a, d, c);
+          }
+        }
+
+        geometry.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(vertices, 3)
+        );
+        geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        // const texture = loader.load("/green.jpg");
+        // texture.wrapS = THREE.RepeatWrapping;
+        // texture.wrapT = THREE.RepeatWrapping;
+        // texture.repeat.set(16 * 12, 16 * 12);
+
+        const shaderMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            baseColor: { value: new THREE.Color(0xf7d299) }, // green base color
+            minHeight: { value: -1.0 }, // lowest terrain y
+            maxHeight: { value: 1.0 }, // highest terrain y
+          },
+          vertexShader: `
+          varying float vHeight;
+
+          void main() {
+            vHeight = position.y; // pass height to fragment shader
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+          fragmentShader: `
+          uniform vec3 baseColor;
+          uniform float minHeight;
+          uniform float maxHeight;
+          varying float vHeight;
+
+          void main() {
+            // normalize height to [0,1]
+            // float h = (vHeight - minHeight) / (maxHeight - minHeight);
+            // h = clamp(h, 0.0, 1.0);
+
+            float h = (vHeight - minHeight) / (maxHeight - minHeight);
+            h = clamp(h, 0.0, 1.0);
+            h = pow(h, 1.5); // exaggerates shadows in low regions
+
+
+            // dark at low, bright at high
+            vec3 color = baseColor * (0.4 + 1.0 * h);
+
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `,
+          side: THREE.DoubleSide,
+        });
+
+        const material = new THREE.MeshStandardMaterial({
+          color: 0xff0000,
+          wireframe: true,
+          side: THREE.DoubleSide,
+        });
+
+        const mesh = new THREE.Mesh(geometry, shaderMaterial);
+
+        // Apply world transform (Rapier heightfield position)
+        mesh.position.copy(position);
+
+        // Apply scale to match physics heightfield
+        mesh.scale.set(scale.x / (ncols - 1), scale.y, scale.z / (nrows - 1));
+
+        this.scene.add(mesh);
+      });
+    }
+  }
+
+  addVehicle(data: any) {
+    console.log(data, "VEHICLE DATA WHEN ADD VEHICLE");
+    const { id, position, quaternion, wheels } = data;
+
+    const vehicleMesh = AssetsManager.instance.getCarClone()?.scene;
+
+    if (!vehicleMesh) {
+      console.log("No vehicle");
+      return;
+    }
+
+    vehicleMesh.position.set(position.x, position.y, position.z);
+    vehicleMesh.quaternion.set(
+      quaternion.x,
+      quaternion.y,
+      quaternion.z,
+      quaternion.w
+    );
+
+    let wheelObjArr: any = [];
+
+    vehicleMesh.traverse((item) => {
+      if (item.name == "wheel_front_left") wheelObjArr[0] = item;
+
+      if (item.name == "wheel_front_right") wheelObjArr[1] = item;
+
+      if (item.name == "wheel_rear_left") wheelObjArr[2] = item;
+
+      if (item.name == "wheel_rear_right") wheelObjArr[3] = item;
+    });
+
+    let wheelArray = [] as any;
+
+    if (wheels) {
+      for (let i = 0; i < wheels.length; i++) {
+        const wheel = wheels[i] as Wheel;
+
+        const wheelMesh = wheelObjArr[i] as any;
+
+        wheelMesh.position.copy(wheel.worldPosition);
+
+        wheelMesh.rotation.z = Math.PI / 2;
+        wheelMesh.rotation.z = Math.PI / 2;
+        wheelMesh.quaternion.copy(wheel.quaternion);
+
+        wheelArray.push(wheelMesh);
+      }
+    }
+
+    this.vehicles.push({ id: id, mesh: vehicleMesh, wheels: wheelArray });
+    this.scene.add(vehicleMesh);
   }
 
   createZone(data: any) {

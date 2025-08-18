@@ -10,7 +10,17 @@ type MobileEvent = {
 export default class InputManager {
   private keys: Record<string, boolean> = {};
   private prevKeys: Record<string, boolean> = {}; // <-- track last frame's state
-  private trackedKeys: string[] = ["w", "a", "s", "d", "shift", "e", " ", "r"];
+  private trackedKeys: string[] = [
+    "w",
+    "a",
+    "s",
+    "d",
+    "shift",
+    "e",
+    " ",
+    "r",
+    "k",
+  ];
   private trackedMouse: string[] = ["mouseLeft", "mouseRight"];
 
   private mouseDeltaX: number = 0;

@@ -12,7 +12,7 @@ import Stats from "stats.js";
 const socket = io("http://192.168.1.102:3000/");
 
 const stats = new Stats();
-document.body.appendChild(stats.dom);
+// document.body.appendChild(stats.dom);
 
 const idElement = document.getElementById("server-id");
 
@@ -114,6 +114,10 @@ socket.on("initWorld", (data: any) => {
 
 socket.on("zoneCreated", (data: any) => {
   world.createZone(data);
+});
+
+socket.on("addVehicle", (data: any) => {
+  world.addVehicle(data);
 });
 
 socket.on("interactableCreated", (data: any) => {
@@ -222,29 +226,30 @@ function updateCameraFollow() {
   const height = 1;
 
   // Sitting locked cam (unless right mouse is pressed)
-  if (player.isSitting && !InputManager.instance.isKeyPressed("mouseRight")) {
-    const localOffset = new THREE.Vector3(0, 3, 6);
-    const offsetWorld = localOffset
-      .clone()
-      .applyQuaternion(player.getQuaternion());
+  // if (player.isSitting && !InputManager.instance.isKeyPressed("mouseRight")) {
+  //   const localOffset = new THREE.Vector3(0, 3, 6);
+  //   const offsetWorld = localOffset
+  //     .clone()
+  //     .applyQuaternion(player.getQuaternion());
 
-    const playerPosSmoothed = new THREE.Vector3().lerpVectors(
-      camera.position.clone().sub(offsetWorld),
-      player.getPosition(),
-      0.98
-    );
+  //   const playerPosSmoothed = new THREE.Vector3().lerpVectors(
+  //     camera.position.clone().sub(offsetWorld),
+  //     player.getPosition(),
+  //     0.98
+  //   );
 
-    const targetPos = playerPosSmoothed.clone().add(offsetWorld);
+  //   const targetPos = playerPosSmoothed.clone().add(offsetWorld);
 
-    camera.position.lerp(targetPos, 0.1); // smaller lerp factor for smoother movement
-    camera.lookAt(
-      playerPosSmoothed.x,
-      playerPosSmoothed.y + 1,
-      playerPosSmoothed.z
-    );
+  //   camera.position.lerp(targetPos, 0.1); // smaller lerp factor for smoother movement
+  //   //camera.position.copy(targetPos);
+  //   camera.lookAt(
+  //     playerPosSmoothed.x,
+  //     playerPosSmoothed.y + 1,
+  //     playerPosSmoothed.z
+  //   );
 
-    return;
-  }
+  //   return;
+  // }
 
   // Orbit / Freecam
   if (isMobile()) {
@@ -276,7 +281,7 @@ function updateCameraFollow() {
     playerPos.z + offsetZ
   );
 
-  camera.position.lerp(desiredPosition, 1.0);
+  camera.position.lerp(desiredPosition, 1);
   camera.lookAt(playerPos.x, playerPos.y + height, playerPos.z);
 }
 
@@ -420,7 +425,7 @@ async function init() {
 
   networkPlayers.set(socket.id, player);
 
-  if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
+  // if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
 
   animate();
 
