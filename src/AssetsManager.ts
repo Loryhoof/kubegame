@@ -21,9 +21,11 @@ export class AssetsManager {
   }
 
   private boxmanModel?: ModelData;
+  private carModel?: ModelData;
 
   async loadAll(): Promise<void> {
     this.boxmanModel = await this.loadGLTF("/boxman_2.glb");
+    this.carModel = await this.loadGLTF("/car.glb");
 
     await AudioManager.instance.loadAll();
   }
@@ -81,6 +83,17 @@ export class AssetsManager {
     return {
       scene: clone(this.boxmanModel.scene),
       animations: this.boxmanModel.animations.map((clip) => clip.clone()),
+    };
+  }
+
+  getCarClone(): { scene: THREE.Object3D } | undefined {
+    if (!this.carModel) {
+      console.log("No car model", this.carModel);
+      return undefined;
+    }
+
+    return {
+      scene: clone(this.carModel.scene),
     };
   }
 }

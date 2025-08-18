@@ -61,14 +61,14 @@ export default function MobileControls() {
         <>
           <div className="fixed z-[10000] bottom-1/3 right-8">
             <div className="flex flex-col space-y-2">
-              {/* <button
-            className=""
-            onClick={() => {
-              document.documentElement.requestFullscreen();
-            }}
-          >
-            FS
-          </button> */}
+              <button
+                className=""
+                onClick={() => {
+                  document.documentElement.requestFullscreen();
+                }}
+              >
+                FS
+              </button>
               {createButton("Use", "e")}
               {createButton("Hit", "mouseLeft")}
               {createButton("JMP", " ")}
