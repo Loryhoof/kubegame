@@ -59,7 +59,7 @@ export default function MobileControls() {
     <>
       {isActive && (
         <>
-          <div className="fixed z-[10000] bottom-1/3 right-8">
+          <div className="fixed z-[10000] bottom-4 right-4">
             <div className="flex flex-col space-y-2">
               <button
                 className=""
@@ -69,9 +69,20 @@ export default function MobileControls() {
               >
                 FS
               </button>
+              {createButton("Car", "k")}
+
               {createButton("Use", "e")}
               {createButton("Hit", "mouseLeft")}
               {createButton("JMP", " ")}
+
+              {/* <button
+                className=""
+                onClick={() => {
+                  document.documentElement.requestFullscreen();
+                }}
+              >
+                FS
+              </button> */}
             </div>
           </div>
 
