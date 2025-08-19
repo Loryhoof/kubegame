@@ -88,6 +88,19 @@ window.addEventListener("camera-controls", (e: any) => {
   joystickY = y;
 });
 
+socket.on("connect_error", (err: any) => {
+  console.error("Socket connection error:", err);
+  const event = new CustomEvent("loading-status", {
+    detail: {
+      error: {
+        title: "Connection error",
+        info: "The server appears to be unreachable, please try again later",
+      },
+    },
+  } as any);
+  window.dispatchEvent(event);
+});
+
 // Networking
 socket.on("connect", () => {
   console.log("Connected with server with id:", socket.id);

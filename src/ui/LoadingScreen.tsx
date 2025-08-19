@@ -24,15 +24,20 @@ const stepStrings = [
 // Final text when ready
 const finalText = "Spawning in";
 
+type Error = {
+  title: string;
+  info: string;
+};
 const LoadingScreen = () => {
   const [step, setStep] = useState(0);
   const [active, setActive] = useState(true);
   const [ready, setReady] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   // Step animation with random delays
   useEffect(() => {
-    if (!active || ready) return;
+    if (!active || ready || error) return; // stop if error occurs
 
     let isCancelled = false;
 
@@ -41,7 +46,7 @@ const LoadingScreen = () => {
 
       setStep((prev) => {
         if (prev < stepStrings.length - 1) {
-          const randomDelay = 400 + Math.random() * 700; // 0.3s to 1s
+          const randomDelay = 400 + Math.random() * 700;
           setTimeout(nextStep, randomDelay);
           return prev + 1;
         }
@@ -54,16 +59,18 @@ const LoadingScreen = () => {
     return () => {
       isCancelled = true;
     };
-  }, [active, ready]);
+  }, [active, ready, error]);
 
-  // Listen for external "loading-status" event
   useEffect(() => {
     const onLoadingStatus = (e: any) => {
-      const { ready } = e.detail;
-      if (ready)
-        setTimeout(() => {
-          setReady(true);
-        }, 1000); // add a small delay before marking ready
+      const { ready, error } = e.detail;
+      if (ready) {
+        setTimeout(() => setReady(true), 1000);
+      }
+
+      if (error) {
+        setError(error);
+      }
     };
 
     window.addEventListener("loading-status", onLoadingStatus as any);
@@ -73,18 +80,20 @@ const LoadingScreen = () => {
 
   // Smoothly fill progress and fade out after extra delay
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || error) return; // don't fade out if error
 
     const delayTimeout = setTimeout(() => {
       setFadeOut(true);
-      setTimeout(() => setActive(false), 600); // fade-out duration
-    }, 1500); // extra delay before fading out
+      setTimeout(() => setActive(false), 600);
+    }, 1500);
 
     return () => clearTimeout(delayTimeout);
-  }, [ready]);
+  }, [ready, error]);
 
   // Progress calculation (capped at 80% before ready)
-  const progress = ready
+  const progress = error
+    ? ((step + 1) / stepStrings.length) * 100 // freeze at current step
+    : ready
     ? 100
     : Math.min(80, ((step + 1) / stepStrings.length) * 100);
 
@@ -96,28 +105,44 @@ const LoadingScreen = () => {
             fadeOut ? "opacity-0" : "opacity-100"
           }`}
         >
-          <div className=" p-6 rounded-lg w-96 flex flex-col items-center space-y-4">
+          <div className="p-6 rounded-lg w-96 flex flex-col items-center space-y-4">
             <h1 className="text-3xl font-bold text-yellow-400 tracking-wider font-mono">
               KUBEGAME
             </h1>
 
-            {/* Step text */}
-            <p className="text-lg text-gray-200 font-bold font-mono h-6">
-              {ready ? finalText : stepStrings[step]}
-              <span className="loading-dots"></span>
-            </p>
+            {!error && (
+              <p className="text-lg font-bold font-mono h-6 text-gray-200">
+                {ready ? finalText : stepStrings[step]}
+                <span className="loading-dots"></span>
+              </p>
+            )}
+
+            {error && (
+              <div className=" text-red-500 flex flex-col items-center text-center gap-2">
+                <p className="font-bold text-xl">{error.title}</p>
+                <p className="font-semibold text-red-900 bg-red-400 p-2">
+                  {error.info}
+                </p>
+              </div>
+            )}
 
             {/* Blocky progress bar */}
-            <div className="w-full bg-gray-800 h-6 flex overflow-hidden">
-              <div
-                className="bg-yellow-400 h-full transition-all duration-500 ease-out"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            {!error && (
+              <div className="w-full bg-gray-800 h-6 flex overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ease-out ${
+                    error ? "bg-red-500" : "bg-yellow-400"
+                  }`}
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
 
-            <p className="text-sm text-gray-400 font-mono">
-              Preparing your sandbox adventure...
-            </p>
+            {!error && (
+              <p className="text-sm text-gray-400 font-mono">
+                Preparing your sandbox adventure...
+              </p>
+            )}
           </div>
         </div>
       )}
