@@ -591,6 +591,10 @@ export default class World {
       if (obj && obj.mesh) {
         obj.mesh.position.copy(vehicle.position);
         obj.mesh.quaternion.copy(vehicle.quaternion);
+        //obj.mesh.visible = false;
+        //obj.mesh.position.copy(new THREE.Vector3(0, 0, 0));
+
+        //obj.mesh.position.lerp(vehicle.position, 0.9);
 
         for (let i = 0; i < vehicle.wheels.length; i++) {
           const wheel = vehicle.wheels[i];

@@ -17,6 +17,7 @@ type StateData = {
   coins: number;
   keys: any;
   isSitting: boolean;
+  controlledObject: { id: string } | null;
 };
 
 class ClientPlayer {
@@ -42,6 +43,8 @@ class ClientPlayer {
   public isSitting: boolean = false;
 
   private infoSprite: FloatingText | null = null;
+
+  public controlledObject: { id: string } | null = null;
 
   constructor(
     networkId: string,
@@ -200,6 +203,7 @@ class ClientPlayer {
       velocity,
       keys,
       isSitting,
+      controlledObject,
     } = state;
 
     this.coins = coins;
@@ -209,6 +213,8 @@ class ClientPlayer {
     this.dummy.position.copy(position);
     this.keys = keys;
     this.isSitting = isSitting;
+
+    this.controlledObject = controlledObject;
 
     // Smooth rotation
     this.dummy.quaternion.slerp(

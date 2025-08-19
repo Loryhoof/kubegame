@@ -187,10 +187,15 @@ socket.on("removePlayer", (playerId: string) => {
   networkPlayers.delete(playerId);
 });
 
-socket.on("updatePlayers", (players: NetworkPlayer) => {
+type UpdateData = {
+  world: any;
+  players: NetworkPlayer;
+};
+
+socket.on("updateData", (data: UpdateData) => {
   if (!worldIsReady) return;
 
-  for (const [key, value] of Object.entries(players)) {
+  for (const [key, value] of Object.entries(data.players)) {
     let netPlayer = networkPlayers.get(key);
 
     if (!netPlayer) {
@@ -206,10 +211,8 @@ socket.on("updatePlayers", (players: NetworkPlayer) => {
 
     netPlayer.setState(value as any);
   }
-});
 
-socket.on("updateWorld", (worldData: any) => {
-  world.updateState(worldData);
+  world.updateState(data.world);
 });
 
 function createPlayerMesh() {
