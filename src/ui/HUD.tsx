@@ -51,7 +51,7 @@ export default function HUD() {
         top: 10,
         left: 10,
         zIndex: 1000,
-        fontFamily: "Arial",
+
         fontSize: 14,
         color: "white",
       }}

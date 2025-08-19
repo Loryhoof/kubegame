@@ -6,6 +6,8 @@ import InfoBar from "./InfoBar";
 import InteractButton from "./InteractButton";
 import LoadingScreen from "./LoadingScreen";
 import MobileControls from "./MobileControls";
+import Chat from "./Chat";
+import { isMobile } from "../utils";
 
 const Main = () => {
   const [ready, setReady] = useState<boolean>(false);
@@ -32,6 +34,7 @@ const Main = () => {
           <InteractButton />
           <MobileControls />
           <InfoBar />
+          {!isMobile() && <Chat />}
         </>
       )}
       <LoadingScreen />

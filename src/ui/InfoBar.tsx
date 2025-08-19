@@ -1,4 +1,5 @@
 import "../../index.css";
+import { isMobile } from "../utils";
 
 function KeyBackground({ label, info }: { label: string; info: string }) {
   return (
@@ -14,8 +15,13 @@ function KeyBackground({ label, info }: { label: string; info: string }) {
 export default function InfoBar() {
   return (
     <div className="fixed z-[1000] p-4 flex flex-col bottom-0 left-0 select-none">
-      <KeyBackground label="E" info="Use" />
-      <KeyBackground label="K" info="Spawn Car" />
+      {!isMobile() && (
+        <>
+          <KeyBackground label="E" info="Use" />
+          <KeyBackground label="K" info="Spawn Car" />
+        </>
+      )}
+
       <p className="pt-2">Kubegame v0.1.2</p>
     </div>
   );

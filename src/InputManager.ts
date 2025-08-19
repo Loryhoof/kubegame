@@ -39,6 +39,8 @@ export default class InputManager {
 
   private renderer: WebGLRenderer | null = null;
 
+  public ignoreKeys: boolean = false;
+
   private constructor() {
     this.init();
   }
@@ -99,11 +101,17 @@ export default class InputManager {
   };
   // --- Input Event Handlers ---
   private onKeyDown = (e: KeyboardEvent) => {
+    if (this.ignoreKeys) return;
+
     const key = e.key.toLowerCase();
     if (this.keys.hasOwnProperty(key)) {
       this.keys[key] = true;
     }
   };
+
+  public setIgnoreKeys(bool: boolean) {
+    this.ignoreKeys = bool;
+  }
 
   public getMouseWheelDelta() {
     return this.mouseWheelDelta;
@@ -122,6 +130,8 @@ export default class InputManager {
   }
 
   private onKeyUp = (e: KeyboardEvent) => {
+    if (this.ignoreKeys) return;
+
     const key = e.key.toLowerCase();
     if (this.keys.hasOwnProperty(key)) {
       this.keys[key] = false;
@@ -167,15 +177,21 @@ export default class InputManager {
 
   // --- State Query ---
   public isKeyPressed(key: string): boolean {
+    if (this.ignoreKeys) return false;
+
     return !!this.keys[key];
   }
 
   public isJustPressed(key: string): boolean {
+    if (this.ignoreKeys) return false;
+
     key = key.toLowerCase();
     return this.keys[key] && !this.prevKeys[key];
   }
 
   public isJustReleased(key: string): boolean {
+    if (this.ignoreKeys) return false;
+
     key = key.toLowerCase();
     return !this.keys[key] && this.prevKeys[key];
   }
@@ -185,6 +201,8 @@ export default class InputManager {
   };
 
   public isMoving = () => {
+    if (this.ignoreKeys) return false;
+
     return this.keys["w"] || this.keys["a"] || this.keys["s"] || this.keys["d"];
   };
 

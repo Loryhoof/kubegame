@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import World from "./World";
-import { io } from "socket.io-client";
 import InputManager from "./InputManager";
 import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
@@ -8,8 +7,7 @@ import { getRandomFromArray, isMobile } from "./utils";
 import AudioManager from "./AudioManager";
 
 import Stats from "stats.js";
-
-const socket = io((import.meta as any).env.VITE_SOCKET_URL);
+import NetworkManager from "./NetworkManager";
 
 const stats = new Stats();
 // document.body.appendChild(stats.dom);
@@ -91,6 +89,8 @@ window.addEventListener("camera-controls", (e: any) => {
   joystickX = x;
   joystickY = y;
 });
+
+const socket = NetworkManager.instance.getSocket();
 
 socket.on("connect_error", (err: any) => {
   console.error("Socket connection error:", err);
