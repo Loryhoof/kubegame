@@ -433,9 +433,15 @@ async function init() {
 
   animate();
 
-  worldIsReady = true;
+  const event = new CustomEvent("loading-status", {
+    detail: { ready: true },
+  } as any);
+  window.dispatchEvent(event);
 
-  socket.emit("readyForWorld");
+  setTimeout(() => {
+    worldIsReady = true;
+    socket.emit("readyForWorld");
+  }, 2000);
 }
 
 function resizeRenderer() {

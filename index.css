@@ -8,3 +8,24 @@
   -moz-user-select: none; /* Firefox */
   -ms-user-select: none; /* IE/Edge */
 }
+
+/* Blocky animated dots */
+@keyframes blink {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  40%,
+  100% {
+    opacity: 1;
+  }
+}
+.loading-dots::after {
+  content: "...";
+  animation: blink 1.2s infinite steps(3);
+}
+
+/* Optional: Pixel font fallback if you have one */
+body {
+  font-family: "Press Start 2P", monospace, sans-serif;
+}
