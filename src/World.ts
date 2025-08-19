@@ -54,7 +54,9 @@ export default class World {
       new THREE.MeshStandardMaterial({ map: texture })
     );
 
-    const fog = new THREE.FogExp2(0x95f2f5, 0.0025);
+    const fogNear = 30;
+    const fogFar = 200;
+    const fog = new THREE.Fog(0x95f2f5, fogNear, fogFar);
     this.scene.fog = fog;
 
     ground.position.z = -10;
@@ -280,38 +282,53 @@ export default class World {
             baseColor: { value: new THREE.Color(0xf7d299) }, // green base color
             minHeight: { value: -1.0 }, // lowest terrain y
             maxHeight: { value: 1.0 }, // highest terrain y
+
+            // Fog uniforms
+            fogColor: { value: new THREE.Color(0xf7d299) }, // set to scene.fog.color
+            fogNear: { value: 30 }, // match scene.fog.near
+            fogFar: { value: 200 }, // match scene.fog.far
           },
           vertexShader: `
-          varying float vHeight;
+    varying float vHeight;
+    varying vec3 vPosition;
 
-          void main() {
-            vHeight = position.y; // pass height to fragment shader
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
+    void main() {
+      vHeight = position.y; // pass height to fragment shader
+      vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz; // view-space position
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
           fragmentShader: `
-          uniform vec3 baseColor;
-          uniform float minHeight;
-          uniform float maxHeight;
-          varying float vHeight;
+    uniform vec3 baseColor;
+    uniform float minHeight;
+    uniform float maxHeight;
 
-          void main() {
-            // normalize height to [0,1]
-            // float h = (vHeight - minHeight) / (maxHeight - minHeight);
-            // h = clamp(h, 0.0, 1.0);
+    uniform vec3 fogColor;
+    uniform float fogNear;
+    uniform float fogFar;
 
-            float h = (vHeight - minHeight) / (maxHeight - minHeight);
-            h = clamp(h, 0.0, 1.0);
-            h = pow(h, 1.5); // exaggerates shadows in low regions
+    varying float vHeight;
+    varying vec3 vPosition;
 
+    void main() {
+      // normalize height to [0,1]
+      float h = (vHeight - minHeight) / (maxHeight - minHeight);
+      h = clamp(h, 0.0, 1.0);
+      h = pow(h, 1.5); // exaggerates shadows in low regions
 
-            // dark at low, bright at high
-            vec3 color = baseColor * (0.4 + 1.0 * h);
+      // dark at low, bright at high
+      vec3 color = baseColor * (0.4 + 1.0 * h);
 
-            gl_FragColor = vec4(color, 1.0);
-          }
-        `,
+      // ---- Fog ----
+      float depth = length(vPosition);
+      float fogFactor = smoothstep(fogNear, fogFar, depth);
+      color = mix(color, fogColor, fogFactor);
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
           side: THREE.DoubleSide,
+          fog: true, // important! enables fog support
         });
 
         const material = new THREE.MeshStandardMaterial({
@@ -456,7 +473,7 @@ export default class World {
 
   update() {
     this.vehicles.forEach((vehicle: ClientVehicle) => {
-      vehicle.update();
+      vehicle.update;
     });
     // this.interactables.forEach((item) => {});
     // this.entities.forEach((entity: Entity) => {
