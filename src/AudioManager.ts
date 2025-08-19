@@ -7,6 +7,7 @@ const audioList = [
   { key: "whoosh_3", url: "audio/whoosh/3.mp3" },
   { key: "pickup", url: "audio/pickup.mp3" },
   { key: "punch_impact", url: "audio/punch_impact.mp3" },
+  { key: "horn", url: "audio/horn.mp3" },
 ];
 
 export default class AudioManager {
@@ -29,6 +30,14 @@ export default class AudioManager {
 
   attachToCamera(camera: THREE.Camera) {
     camera.add(this.listener);
+  }
+
+  getListener() {
+    return this.listener;
+  }
+
+  getBufferByName(name: string): AudioBuffer | undefined {
+    return this.audioBuffers.get(name);
   }
 
   async loadAll(): Promise<void> {

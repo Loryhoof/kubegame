@@ -1,25 +1,12 @@
 import * as THREE from "three";
 import Interactable from "./Interactable";
 import { AssetsManager } from "./AssetsManager";
+import ClientVehicle, { Wheel } from "./ClientVehicle";
 
 const loader = new THREE.TextureLoader();
 
-type Wheel = {
-  position: THREE.Vector3;
-  quaternion: THREE.Quaternion;
-  radius: number;
-  worldPosition: THREE.Vector3;
-};
-
-type Vehicle = {
-  id: string;
-  position: THREE.Vector3;
-  quaternion: THREE.Quaternion;
-  wheels: Wheel[];
-};
-
 type WorldStateData = {
-  vehicles: Vehicle[];
+  vehicles: ClientVehicle[];
 };
 
 type TerrainData = {
@@ -35,7 +22,7 @@ export default class World {
   private scene: THREE.Scene;
   private entities: any[] = [];
   public interactables: any[] = [];
-  public vehicles: any[] = [];
+  public vehicles: ClientVehicle[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -218,113 +205,18 @@ export default class World {
     }
 
     if (vehicles) {
-      vehicles.forEach((vehicle: Vehicle) => {
+      vehicles.forEach((vehicle: ClientVehicle) => {
         const { id, position, quaternion, wheels } = vehicle;
 
-        // const vehicleMesh = new THREE.Mesh(
-        //   new THREE.BoxGeometry(2, 0.5, 4),
-        //   new THREE.MeshStandardMaterial({
-        //     color: new THREE.Color(0xff0000),
-        //   })
-        // );
-
-        const vehicleMesh = AssetsManager.instance.getCarClone()?.scene;
-
-        if (!vehicleMesh) {
-          console.log("No vehicle");
-          return;
-        }
-
-        vehicleMesh.position.set(position.x, position.y, position.z);
-        vehicleMesh.quaternion.set(
-          quaternion.x,
-          quaternion.y,
-          quaternion.z,
-          quaternion.w
+        const clientVehicle = new ClientVehicle(
+          id,
+          position,
+          quaternion,
+          wheels
         );
 
-        let wheelObjFrontLeft,
-          wheelObjFrontRight,
-          wheelObjRearLeft,
-          wheelObjRearRight;
-
-        let wheelObjArr: any = [];
-
-        vehicleMesh.traverse((item) => {
-          // console.log(item.name);
-
-          if (item.name == "wheel_front_left") wheelObjArr[0] = item;
-
-          if (item.name == "wheel_front_right") wheelObjArr[1] = item;
-
-          if (item.name == "wheel_rear_left") wheelObjArr[2] = item;
-
-          if (item.name == "wheel_rear_right") wheelObjArr[3] = item;
-        });
-
-        let wheelArray = [] as any;
-
-        if (wheels) {
-          for (let i = 0; i < wheels.length; i++) {
-            const wheel = wheels[i] as Wheel;
-
-            const wheelMesh = wheelObjArr[i] as any;
-
-            //if (!wheelMesh) return;
-
-            wheelMesh.position.copy(wheel.worldPosition);
-
-            wheelMesh.rotation.z = Math.PI / 2;
-            wheelMesh.rotation.z = Math.PI / 2;
-            wheelMesh.quaternion.copy(wheel.quaternion);
-
-            wheelArray.push(wheelMesh);
-          }
-          // for (let i = 0; i < wheels.length; i++) {
-          //   const wheel = wheels[i] as Wheel;
-
-          //   const wheelMesh = wheelObjArr[i] as any;
-
-          //   if (!wheelMesh) return;
-
-          //   //vehicle.add(wheelMesh);
-
-          //   //this.scene.add(wheelMesh);
-
-          //   //wheelMesh.position.copy(wheel.position);
-
-          //   //wheelArray.push(wheelMesh);
-          // }
-          // wheels.forEach((wheel: Wheel) => {
-          //   // const wheelMesh = new THREE.Mesh(
-          //   //   new THREE.CylinderGeometry(wheel.radius, wheel.radius, 0.2),
-          //   //   new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-          //   // );
-
-          //   const wheelMesh = new THREE.Mesh(
-          //     new THREE.BoxGeometry(0.25, 0.5, 0.5),
-          //     new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-          //   );
-
-          //   vehicleMesh.add(wheelMesh);
-
-          //   wheelMesh.position.set(
-          //     wheel.position.x,
-          //     wheel.position.y,
-          //     wheel.position.z
-          //   );
-
-          //   //wheelMesh.rotation.z = Math.PI / 2;
-          //   wheelMesh.rotation.z = Math.PI / 2;
-          //   wheelMesh.quaternion.copy(wheel.quaternion);
-          //   //wheelMesh.quaternion.copy(wheel.quaternion);
-
-          //   wheelArray.push(wheelMesh);
-          // });
-        }
-
-        this.vehicles.push({ id: id, mesh: vehicleMesh, wheels: wheelArray });
-        this.scene.add(vehicleMesh);
+        this.vehicles.push(clientVehicle);
+        this.scene.add(clientVehicle.mesh);
       });
     }
     if (terrains) {
@@ -444,53 +336,10 @@ export default class World {
   addVehicle(data: any) {
     const { id, position, quaternion, wheels } = data;
 
-    const vehicleMesh = AssetsManager.instance.getCarClone()?.scene;
+    const clientVehicle = new ClientVehicle(id, position, quaternion, wheels);
 
-    if (!vehicleMesh) {
-      console.log("No vehicle");
-      return;
-    }
-
-    vehicleMesh.position.set(position.x, position.y, position.z);
-    vehicleMesh.quaternion.set(
-      quaternion.x,
-      quaternion.y,
-      quaternion.z,
-      quaternion.w
-    );
-
-    let wheelObjArr: any = [];
-
-    vehicleMesh.traverse((item) => {
-      if (item.name == "wheel_front_left") wheelObjArr[0] = item;
-
-      if (item.name == "wheel_front_right") wheelObjArr[1] = item;
-
-      if (item.name == "wheel_rear_left") wheelObjArr[2] = item;
-
-      if (item.name == "wheel_rear_right") wheelObjArr[3] = item;
-    });
-
-    let wheelArray = [] as any;
-
-    if (wheels) {
-      for (let i = 0; i < wheels.length; i++) {
-        const wheel = wheels[i] as Wheel;
-
-        const wheelMesh = wheelObjArr[i] as any;
-
-        wheelMesh.position.copy(wheel.worldPosition);
-
-        wheelMesh.rotation.z = Math.PI / 2;
-        wheelMesh.rotation.z = Math.PI / 2;
-        wheelMesh.quaternion.copy(wheel.quaternion);
-
-        wheelArray.push(wheelMesh);
-      }
-    }
-
-    this.vehicles.push({ id: id, mesh: vehicleMesh, wheels: wheelArray });
-    this.scene.add(vehicleMesh);
+    this.vehicles.push(clientVehicle);
+    this.scene.add(clientVehicle.mesh);
   }
 
   createZone(data: any) {
@@ -569,7 +418,8 @@ export default class World {
   removeVehicleByUUID(uuid: string) {
     const index = this.vehicles.findIndex((vehicle) => vehicle.id === uuid);
     if (index !== -1) {
-      const vehicle = this.vehicles[index];
+      const vehicle = this.vehicles[index] as ClientVehicle;
+      vehicle.cleanup();
       this.scene.remove(vehicle.mesh); // Remove mesh from scene
       this.vehicles.splice(index, 1); // Remove entity from array
     }
@@ -585,29 +435,29 @@ export default class World {
   updateState(data: WorldStateData) {
     const { vehicles } = data;
 
-    vehicles.forEach((vehicle) => {
-      const obj = this.getObjById(vehicle.id, this.vehicles) as any;
+    vehicles.forEach((networkVehicle) => {
+      const clientVehicle = this.getObjById(
+        networkVehicle.id,
+        this.vehicles
+      ) as ClientVehicle;
 
-      if (obj && obj.mesh) {
-        obj.mesh.position.copy(vehicle.position);
-        obj.mesh.quaternion.copy(vehicle.quaternion);
-        //obj.mesh.visible = false;
-        //obj.mesh.position.copy(new THREE.Vector3(0, 0, 0));
+      if (!clientVehicle) return;
 
-        //obj.mesh.position.lerp(vehicle.position, 0.9);
+      console.log(networkVehicle.hornPlaying);
 
-        for (let i = 0; i < vehicle.wheels.length; i++) {
-          const wheel = vehicle.wheels[i];
-          const dummyWheel = obj.wheels[i];
-
-          dummyWheel.quaternion.copy(wheel.quaternion);
-          dummyWheel.position.copy(wheel.worldPosition);
-        }
-      }
+      clientVehicle.updateState(
+        networkVehicle.position,
+        networkVehicle.quaternion,
+        networkVehicle.wheels,
+        networkVehicle.hornPlaying
+      );
     });
   }
 
   update() {
+    this.vehicles.forEach((vehicle: ClientVehicle) => {
+      vehicle.update();
+    });
     // this.interactables.forEach((item) => {});
     // this.entities.forEach((entity: Entity) => {
     //   entity.update();
