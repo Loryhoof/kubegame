@@ -116,29 +116,6 @@ export default class ClientVehicle {
   }
 
   update() {
-    // const speedOfSound = 343; // m/s
-
-    // function updateDoppler(
-    //   car: any,
-    //   carAudio: any,
-    //   listener: any,
-    //   camera: any
-    // ) {
-    //   // Vector from source to listener
-    //   const relPos = new THREE.Vector3()
-    //     .subVectors(camera.position, car.position)
-    //     .normalize();
-
-    //   // Project velocities onto line of sight
-    //   const vSource = car.userData.velocity.dot(relPos);
-    //   const vListener = listener.dot(relPos);
-
-    //   // Doppler formula
-    //   const fShift = (speedOfSound + vListener) / (speedOfSound - vSource);
-
-    //   // Apply to playback rate (clamp to avoid extremes)
-    //   carAudio.playbackRate = THREE.MathUtils.clamp(fShift, 0.5, 2.0);
-    // }
     const horn = this.sounds.get("horn");
     if (this.hornPlaying) {
       if (horn?.isPlaying) return;

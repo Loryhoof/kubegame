@@ -460,8 +460,6 @@ export default class World {
 
       if (!clientVehicle) return;
 
-      console.log(networkVehicle.hornPlaying);
-
       clientVehicle.updateState(
         networkVehicle.position,
         networkVehicle.quaternion,
@@ -473,7 +471,7 @@ export default class World {
 
   update() {
     this.vehicles.forEach((vehicle: ClientVehicle) => {
-      vehicle.update;
+      vehicle.update();
     });
     // this.interactables.forEach((item) => {});
     // this.entities.forEach((entity: Entity) => {
