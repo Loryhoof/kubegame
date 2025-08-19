@@ -82,7 +82,7 @@ export default function Chat() {
       >
         {messages.map((msg, index) => (
           <div key={`${msg.id}-${index}`} className="px-1 py-0.5 text-gray-200">
-            {msg.id.slice(0, 4)}: {msg.text}
+            {index == 0 ? "" : `${msg.id.slice(0, 4)}:`} {msg.text}
           </div>
         ))}
       </div>
