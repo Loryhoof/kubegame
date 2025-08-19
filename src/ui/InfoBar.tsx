@@ -16,7 +16,7 @@ export default function InfoBar() {
     <div className="fixed z-[1000] p-4 flex flex-col bottom-0 left-0 select-none">
       <KeyBackground label="E" info="Use" />
       <KeyBackground label="K" info="Spawn Car" />
-      <p className="pt-2">Kubegame v0.1.1</p>
+      <p className="pt-2">Kubegame v0.1.2</p>
     </div>
   );
 }
