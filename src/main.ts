@@ -109,7 +109,6 @@ socket.on("pongCheck", (startTime: number) => {
 
 socket.on("initWorld", (data: any) => {
   world.initWorldData(data);
-  console.log(data);
 });
 
 socket.on("zoneCreated", (data: any) => {
@@ -125,12 +124,10 @@ socket.on("interactableCreated", (data: any) => {
 });
 
 socket.on("zoneRemoved", (uuid: string) => {
-  console.log("want to remove zone");
   world.removeByUUID(uuid);
 });
 
 socket.on("interactableRemoved", (uuid: string) => {
-  console.log("want to remove interactable");
   AudioManager.instance.playAudio("pickup", 0.1);
   world.removeInteractableByUUID(uuid);
 });
@@ -165,15 +162,12 @@ socket.on("user_action", (data: UserActionData) => {
 });
 
 socket.on("addPlayer", (playerId: string) => {
-  console.log("Adding player:", playerId);
-
   const newPlayer = new ClientPlayer(playerId, "0xffffff", scene);
 
   networkPlayers.set(playerId, newPlayer);
 });
 
 socket.on("removePlayer", (playerId: string) => {
-  console.log("Removing player:", playerId);
   const player = networkPlayers.get(playerId);
   if (!player) return;
   player.remove();
@@ -406,8 +400,6 @@ function checkPlayerInteractables(player: ClientPlayer) {
       closestInteractable = interactable;
     }
   }
-
-  // console.log(closestInteractable, minDist);
 
   if (minDist <= 1.5) {
     wantsToInteract = true;

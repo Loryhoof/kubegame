@@ -117,7 +117,6 @@ export default class World {
     const { zones, colliders, entities, interactables, vehicles, terrains } =
       data;
 
-    console.log(data, "DATa");
     if (zones) {
       zones.forEach((zone: any) => {
         const { id, width, height, depth, position, quaternion, color } = zone;
@@ -220,7 +219,6 @@ export default class World {
 
     if (vehicles) {
       vehicles.forEach((vehicle: Vehicle) => {
-        console.log(vehicle, "veh");
         const { id, position, quaternion, wheels } = vehicle;
 
         // const vehicleMesh = new THREE.Mesh(
@@ -271,8 +269,6 @@ export default class World {
             const wheel = wheels[i] as Wheel;
 
             const wheelMesh = wheelObjArr[i] as any;
-
-            console.log(wheelMesh);
 
             //if (!wheelMesh) return;
 
@@ -446,7 +442,6 @@ export default class World {
   }
 
   addVehicle(data: any) {
-    console.log(data, "VEHICLE DATA WHEN ADD VEHICLE");
     const { id, position, quaternion, wheels } = data;
 
     const vehicleMesh = AssetsManager.instance.getCarClone()?.scene;

@@ -92,11 +92,11 @@ const LoadingScreen = () => {
     <>
       {active && (
         <div
-          className={`fixed inset-0 z-[10000] flex items-center justify-center bg-gradient-to-b from-orange-600 via-orange-700 to-orange-800 select-none transition-opacity duration-500 ${
+          className={`fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900 select-none transition-opacity duration-500 ${
             fadeOut ? "opacity-0" : "opacity-100"
           }`}
         >
-          <div className="bg-gray-900 border-4 border-gray-700 p-6 rounded-lg w-96 flex flex-col items-center space-y-4 shadow-lg">
+          <div className=" p-6 rounded-lg w-96 flex flex-col items-center space-y-4">
             <h1 className="text-3xl font-bold text-yellow-400 tracking-wider font-mono">
               KUBEGAME
             </h1>
@@ -108,7 +108,7 @@ const LoadingScreen = () => {
             </p>
 
             {/* Blocky progress bar */}
-            <div className="w-full bg-gray-800 h-6 border-2 border-gray-700 rounded flex overflow-hidden">
+            <div className="w-full bg-gray-800 h-6 flex overflow-hidden">
               <div
                 className="bg-yellow-400 h-full transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
