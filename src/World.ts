@@ -2,6 +2,7 @@ import * as THREE from "three";
 import Interactable from "./Interactable";
 import { AssetsManager } from "./AssetsManager";
 import ClientVehicle, { Wheel } from "./ClientVehicle";
+import { getRandomFromArray } from "./utils";
 
 const loader = new THREE.TextureLoader();
 
@@ -236,6 +237,20 @@ export default class World {
         const halfWidth = (ncols - 1) / 2;
         const halfDepth = (nrows - 1) / 2;
 
+        const cactusObj = new THREE.Mesh(
+          new THREE.BoxGeometry(0.3, 5, 0.3),
+          new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+        );
+
+        const rockObj = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshStandardMaterial({ color: 0x8c5c37 })
+        );
+
+        const objs = [cactusObj, rockObj];
+
+        const lastHighest = new THREE.Vector3(0, 0, 0);
+
         // Row-major vertices, centered around origin
         for (let i = 0; i < nrows; i++) {
           for (let j = 0; j < ncols; j++) {
@@ -244,12 +259,43 @@ export default class World {
             const z = j - halfWidth; // j → Z axis
             vertices.push(x, y, z);
 
+            // apply the scale that you'll set on the mesh
+            const worldX = x * (scale.x / (ncols - 1));
+            const worldY = y * scale.y;
+            const worldZ = z * (scale.z / (nrows - 1));
+
+            // then apply the translation (mesh.position.copy(position))
+            const finalX = worldX + position.x;
+            const finalY = worldY + position.y;
+            const finalZ = worldZ + position.z;
+
+            if (worldY > lastHighest.y) {
+              lastHighest.set(worldX, worldY, worldZ);
+            }
+
+            // console.log(`world (${i},${j}):`, finalX, finalY, finalZ);
+
+            if (worldY >= 0) {
+              if (Math.random() > 0.95) {
+                let mesh = getRandomFromArray(objs).clone();
+                mesh.position.set(finalX, finalY, finalZ);
+                this.scene.add(mesh);
+              }
+            }
+
             // UVs normalized to [0,1]
             const u = j / (ncols - 1);
             const v = i / (nrows - 1);
             uvs.push(u, v);
           }
         }
+
+        const statueObj = new THREE.Mesh(
+          new THREE.BoxGeometry(2, 10, 2),
+          new THREE.MeshStandardMaterial({ color: 0x000000 })
+        );
+        statueObj.position.copy(lastHighest);
+        this.scene.add(statueObj);
 
         // Create triangle indices
         for (let i = 0; i < nrows - 1; i++) {
