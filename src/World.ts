@@ -237,6 +237,9 @@ export default class World {
         const halfWidth = (ncols - 1) / 2;
         const halfDepth = (nrows - 1) / 2;
 
+        const cactusPositions: THREE.Vector3[] = [];
+        const rockPositions: THREE.Vector3[] = [];
+
         const cactusObj = new THREE.Mesh(
           new THREE.BoxGeometry(0.3, 5, 0.3),
           new THREE.MeshStandardMaterial({ color: 0x00ff00 })
@@ -273,13 +276,17 @@ export default class World {
               lastHighest.set(worldX, worldY, worldZ);
             }
 
-            // console.log(`world (${i},${j}):`, finalX, finalY, finalZ);
-
             if (worldY >= 0) {
               if (Math.random() > 0.95) {
-                let mesh = getRandomFromArray(objs).clone();
-                mesh.position.set(finalX, finalY, finalZ);
-                this.scene.add(mesh);
+                let mesh = getRandomFromArray(["cactus", "rock"]);
+
+                if (mesh == "cactus") {
+                  cactusPositions.push(
+                    new THREE.Vector3(finalX, finalY, finalZ)
+                  );
+                } else {
+                  rockPositions.push(new THREE.Vector3(finalX, finalY, finalZ));
+                }
               }
             }
 
@@ -289,6 +296,36 @@ export default class World {
             uvs.push(u, v);
           }
         }
+
+        const cactusInstancedMesh = new THREE.InstancedMesh(
+          cactusObj.geometry,
+          cactusObj.material,
+          cactusPositions.length
+        );
+
+        cactusPositions.forEach((position, index) => {
+          const matrix4 = new THREE.Matrix4();
+          matrix4.setPosition(position);
+
+          cactusInstancedMesh.setMatrixAt(index, matrix4);
+        });
+
+        this.scene.add(cactusInstancedMesh);
+
+        const rockInstancedMesh = new THREE.InstancedMesh(
+          rockObj.geometry,
+          rockObj.material,
+          rockPositions.length
+        );
+
+        rockPositions.forEach((position, index) => {
+          const matrix4 = new THREE.Matrix4();
+          matrix4.setPosition(position);
+
+          rockInstancedMesh.setMatrixAt(index, matrix4);
+        });
+
+        this.scene.add(rockInstancedMesh);
 
         const statueObj = new THREE.Mesh(
           new THREE.BoxGeometry(2, 10, 2),
