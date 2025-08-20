@@ -105,6 +105,18 @@ class ClientPlayer {
         ),
       ],
       ["Sit", this.mixer.clipAction(getAnimationByName(modelAnims, "Sit"))],
+      // [
+      //   "Running",
+      //   this.mixer.clipAction(getAnimationByName(modelAnims, "Running")),
+      // ],
+      [
+        "Running_Upper",
+        this.mixer.clipAction(getAnimationByName(modelAnims, "Running_Upper")),
+      ],
+      [
+        "Running_Lower",
+        this.mixer.clipAction(getAnimationByName(modelAnims, "Running_Lower")),
+      ],
     ]);
 
     this.mixer.addEventListener("finished", (e) => {
@@ -297,7 +309,9 @@ class ClientPlayer {
       : this.keys;
     const isStrafing = keys.mouseRight;
     const speedFactor = keys.shift ? 1.5 : 1;
+
     const moving = this.velocity.length() > 0.01;
+    const isRunning = keys.shift && moving;
 
     const idle = this.animations.get("Idle");
     const walkLower = this.animations.get("Walk_Lower");
@@ -305,6 +319,9 @@ class ClientPlayer {
     const strafeLeft = this.animations.get("Strave_Walk_Left");
     const strafeRight = this.animations.get("Strave_Walk_Right");
     const sit = this.animations.get("Sit");
+    const run = this.animations.get("Running");
+    const runningUpper = this.animations.get("Running_Upper");
+    const runningLower = this.animations.get("Running_Lower");
 
     if (this.isSitting) {
       this.interpolateWeight(sit, 1, delta);
@@ -313,6 +330,9 @@ class ClientPlayer {
       this.interpolateWeight(walkLower, 0, delta);
       this.interpolateWeight(strafeLeft, 0, delta);
       this.interpolateWeight(strafeRight, 0, delta);
+      //this.interpolateWeight(run, 0, delta);
+      this.interpolateWeight(runningLower, 0, delta);
+      this.interpolateWeight(runningUpper, 0, delta);
 
       return;
     } else {
@@ -322,9 +342,24 @@ class ClientPlayer {
     if (this.isAttacking) {
       this.interpolateWeight(idle, 0, delta);
       this.interpolateWeight(walkUpper, 0, delta);
+      this.interpolateWeight(runningUpper, 0, delta);
     }
 
-    if (moving) {
+    if (isRunning) {
+      if (!this.isAttacking) {
+        this.interpolateWeight(runningUpper, 1, delta);
+      }
+      this.interpolateWeight(runningLower, 1, delta);
+
+      this.interpolateWeight(walkLower, 0, delta);
+      this.interpolateWeight(walkUpper, 0, delta);
+      this.interpolateWeight(strafeLeft, 0, delta);
+      this.interpolateWeight(strafeRight, 0, delta);
+      this.interpolateWeight(idle, 0, delta);
+    } else if (moving) {
+      this.interpolateWeight(runningUpper, 0, delta);
+      this.interpolateWeight(runningLower, 0, delta);
+
       if (!this.isAttacking)
         this.interpolateWeight(walkUpper, 1, delta * speedFactor);
 
@@ -354,6 +389,9 @@ class ClientPlayer {
       this.interpolateWeight(walkLower, 0, delta);
       this.interpolateWeight(strafeLeft, 0, delta);
       this.interpolateWeight(strafeRight, 0, delta);
+      this.interpolateWeight(run, 0, delta);
+      this.interpolateWeight(runningUpper, 0, delta);
+      this.interpolateWeight(runningLower, 0, delta);
     }
   }
 
