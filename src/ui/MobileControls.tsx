@@ -74,6 +74,7 @@ export default function MobileControls() {
               {createButton("Use", "e")}
               {createButton("Hit", "mouseLeft")}
               {createButton("JMP", " ")}
+              {createButton("RUN", "shift")}
 
               {/* <button
                 className=""
