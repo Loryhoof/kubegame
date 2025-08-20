@@ -254,6 +254,9 @@ export default class World {
 
         const lastHighest = new THREE.Vector3(0, 0, 0);
 
+        let lowestHeight = Infinity;
+        let highestHeight = -Infinity;
+
         // Row-major vertices, centered around origin
         for (let i = 0; i < nrows; i++) {
           for (let j = 0; j < ncols; j++) {
@@ -274,6 +277,14 @@ export default class World {
 
             if (worldY > lastHighest.y) {
               lastHighest.set(worldX, worldY, worldZ);
+            }
+
+            if (worldY > highestHeight) {
+              highestHeight = worldY;
+            }
+
+            if (worldY < lowestHeight) {
+              lowestHeight = worldY;
             }
 
             if (worldY >= 0) {
@@ -297,6 +308,29 @@ export default class World {
           }
         }
 
+        console.log(lowestHeight, highestHeight, "LOWEST AND HIEHGTS");
+
+        const waterPLane = new THREE.Mesh(
+          new THREE.BoxGeometry(10000, 0.1, 1000),
+          new THREE.MeshStandardMaterial({
+            color: 0x47e7ff,
+            transparent: true,
+            opacity: 0.7,
+          })
+        );
+
+        waterPLane.position.y = -1;
+
+        // const bridge = new THREE.Mesh(
+        //   new THREE.BoxGeometry(6, 0.5, 30),
+        //   new THREE.MeshStandardMaterial({ color: 0x383838 })
+        // );
+        // bridge.position.set(60, 0, 28);
+        // bridge.rotation.y = Math.PI / 2;
+
+        // this.scene.add(bridge);
+
+        this.scene.add(waterPLane);
         const cactusInstancedMesh = new THREE.InstancedMesh(
           cactusObj.geometry,
           cactusObj.material,
@@ -363,8 +397,8 @@ export default class World {
         const shaderMaterial = new THREE.ShaderMaterial({
           uniforms: {
             baseColor: { value: new THREE.Color(0xf7d299) }, // green base color
-            minHeight: { value: -1.0 }, // lowest terrain y
-            maxHeight: { value: 1.0 }, // highest terrain y
+            minHeight: { value: lowestHeight }, // lowest terrain y
+            maxHeight: { value: highestHeight }, // highest terrain y
 
             // Fog uniforms
             fogColor: { value: new THREE.Color(0xf7d299) }, // set to scene.fog.color
@@ -401,6 +435,14 @@ export default class World {
 
       // dark at low, bright at high
       vec3 color = baseColor * (0.4 + 1.0 * h);
+
+      if(h < 0.20) {
+        color = vec3(0.3294, 0.3294, 0.3294);
+
+
+      };
+
+     
 
       // ---- Fog ----
       float depth = length(vPosition);
