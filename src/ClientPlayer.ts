@@ -147,7 +147,8 @@ class ClientPlayer {
     });
 
     if (!this.isLocalPlayer) {
-      this.infoSprite = new FloatingText(`${this.health.toString()} / 100`);
+      this.infoSprite = new FloatingText(this.networkId.slice(0, 4));
+
       this.infoSprite.setPositionAbove(this.dummy, 1.5);
     }
   }
@@ -404,13 +405,13 @@ class ClientPlayer {
     this.updateAudio();
     this.mixer.update(delta);
 
-    if (!this.isLocalPlayer && this.infoSprite) {
-      let color = "#ffffff";
-      if (this.health <= 25) {
-        color = "#ff0000";
-      }
-      this.infoSprite.setText(`${this.health} / 100`, color);
-    }
+    // if (!this.isLocalPlayer && this.infoSprite) {
+    //   // let color = "#ffffff";
+    //   // if (this.health <= 25) {
+    //   //   color = "#ff0000";
+    //   // }
+    //   this.infoSprite.setText(`${this.networkId.slice(0, 4)}`);
+    // }
   }
 }
 

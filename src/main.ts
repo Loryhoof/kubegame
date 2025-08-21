@@ -208,7 +208,7 @@ socket.on("updateData", (data: UpdateData) => {
     let netPlayer = networkPlayers.get(key);
 
     if (!netPlayer) {
-      const newPlayer = new ClientPlayer(socket.id!, "0xffffff", scene);
+      const newPlayer = new ClientPlayer(key, "0xffffff", scene);
       networkPlayers.set(key, newPlayer);
       netPlayer = networkPlayers.get(key)!;
     }
