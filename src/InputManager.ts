@@ -76,6 +76,8 @@ export default class InputManager {
   }
 
   private onMouseWheel = (e: WheelEvent) => {
+    if (this.ignoreKeys) return;
+
     const delta = e.deltaY + e.deltaX;
 
     this.mouseWheelDelta += delta;
