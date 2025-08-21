@@ -8,6 +8,7 @@ import AudioManager from "./AudioManager";
 
 import Stats from "stats.js";
 import NetworkManager from "./NetworkManager";
+import ChatManager from "./ChatManager";
 
 const stats = new Stats();
 // document.body.appendChild(stats.dom);
@@ -126,6 +127,10 @@ socket.on("pongCheck", (startTime: number) => {
 
 socket.on("initWorld", (data: any) => {
   world.initWorldData(data);
+});
+
+socket.on("init-chat", (data: any) => {
+  ChatManager.instance.init(data && data.messages ? data.messages : []);
 });
 
 socket.on("zoneCreated", (data: any) => {
