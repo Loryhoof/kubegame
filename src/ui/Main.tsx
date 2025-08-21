@@ -8,9 +8,11 @@ import LoadingScreen from "./LoadingScreen";
 import MobileControls from "./MobileControls";
 import Chat from "./Chat";
 import { isMobile } from "../utils";
+import { StartScreen } from "./StartScreen";
 
 const Main = () => {
   const [ready, setReady] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     const onLoadingStatus = (e: CustomEvent<any>) => {
@@ -37,7 +39,14 @@ const Main = () => {
           {!isMobile() && <Chat />}
         </>
       )}
-      <LoadingScreen />
+      {!loading && (
+        <StartScreen
+          onStart={() => {
+            setLoading(true);
+          }}
+        />
+      )}
+      {loading && <LoadingScreen />}
     </>
   );
 };
