@@ -24,8 +24,9 @@ export default function HUD() {
     // Define the event handler with a typed CustomEvent
     function onPlayerUpdate(e: CustomEvent<EventData>) {
       const eventDetails = e.detail;
+
       setNetworkId(eventDetails.networkId);
-      setPosition(eventDetails.position);
+      setPosition({ ...eventDetails.position });
       setCoins(eventDetails.coins);
       setHealth(eventDetails.health);
       setPlayerCount(eventDetails.playerCount);

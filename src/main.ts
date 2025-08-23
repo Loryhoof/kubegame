@@ -13,12 +13,9 @@ import ChatManager from "./ChatManager";
 const stats = new Stats();
 // document.body.appendChild(stats.dom);
 
-const idElement = document.getElementById("server-id");
-
 const clock = new THREE.Clock();
 
 let localId: string | null = null;
-
 let worldIsReady = false;
 
 type NetworkPlayer = {
@@ -31,16 +28,11 @@ type NetworkPlayer = {
 };
 
 let ping = 0;
-
 const networkPlayers = new Map<string, ClientPlayer>();
-
-let lastSentState = {};
+let lastSentState: any = {};
 
 // Scene
 const scene = new THREE.Scene();
-
-let wantsToInteract = false;
-
 scene.background = new THREE.Color(0x95f2f5);
 
 // Camera
@@ -51,191 +43,142 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 camera.position.set(0, 2, 5);
-
 AudioManager.instance.attachToCamera(camera);
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-// renderer.setSize(window.innerWidth, window.innerHeight);
-
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-
 document.body.appendChild(renderer.domElement);
-
-// World
-const world = new World(scene);
-world.init();
-
-// Camera control vars
-
-const mobileSens = 0.08;
-
-let joystickX = 0;
-let joystickY = 0;
 
 // Input manager
 const inputManager = InputManager.instance;
 inputManager.setRenderer(renderer);
 
 // Pointer lock
-
 document.body.addEventListener("click", () => {
   renderer.domElement.requestPointerLock();
 });
 
+// Mobile joystick control
+const mobileSens = 0.08;
+let joystickX = 0;
+let joystickY = 0;
 window.addEventListener("camera-controls", (e: any) => {
-  const { x, y } = e.detail; // joystick input, typically -1 to 1
-
+  const { x, y } = e.detail;
   joystickX = x;
   joystickY = y;
 });
 
+// Networking
 const socket = NetworkManager.instance.getSocket();
 
-socket.on("connect_error", (err: any) => {
-  console.error("Socket connection error:", err);
-  const event = new CustomEvent("loading-status", {
-    detail: {
-      error: {
-        title: "Connection error",
-        info: "The server appears to be unreachable, please try again later",
+// ✅ Do not bind listeners immediately — only after init()
+function registerSocketEvents(world: World) {
+  socket.on("connect_error", (err: any) => {
+    console.error("Socket connection error:", err);
+    const event = new CustomEvent("loading-status", {
+      detail: {
+        error: {
+          title: "Connection error",
+          info: "The server appears to be unreachable, please try again later",
+        },
       },
-    },
-  } as any);
-  window.dispatchEvent(event);
-});
+    } as any);
+    window.dispatchEvent(event);
+  });
 
-// Networking
-socket.on("connect", () => {
-  console.log("Connected with server with id:", socket.id);
+  setInterval(() => {
+    const start = Date.now();
+    socket.emit("pingCheck", start);
+  }, 3000);
 
-  localId = socket.id!;
+  socket.on("pongCheck", (startTime: number) => {
+    ping = Date.now() - startTime;
+  });
 
-  init();
-});
+  socket.on("initWorld", (data: any) => {
+    world.initWorldData(data);
+  });
 
-setInterval(() => {
-  const start = Date.now();
-  socket.emit("pingCheck", start);
-}, 3000);
+  socket.on("init-chat", (data: any) => {
+    ChatManager.instance.init(data && data.messages ? data.messages : []);
+  });
 
-// Listen for pong reply from server
-socket.on("pongCheck", (startTime: number) => {
-  ping = Date.now() - startTime;
-});
+  socket.on("zoneCreated", (data: any) => {
+    world.createZone(data);
+  });
 
-socket.on("initWorld", (data: any) => {
-  world.initWorldData(data);
-});
+  socket.on("addVehicle", (data: any) => {
+    world.addVehicle(data);
+  });
 
-socket.on("init-chat", (data: any) => {
-  ChatManager.instance.init(data && data.messages ? data.messages : []);
-});
+  socket.on("interactableCreated", (data: any) => {
+    world.createInteractable(data);
+  });
 
-socket.on("zoneCreated", (data: any) => {
-  world.createZone(data);
-});
+  socket.on("zoneRemoved", (uuid: string) => {
+    world.removeByUUID(uuid);
+  });
 
-socket.on("addVehicle", (data: any) => {
-  world.addVehicle(data);
-});
+  socket.on("interactableRemoved", (uuid: string) => {
+    AudioManager.instance.playAudio("pickup", 0.1);
+    world.removeInteractableByUUID(uuid);
+  });
 
-socket.on("interactableCreated", (data: any) => {
-  world.createInteractable(data);
-});
+  socket.on("vehicleRemoved", (uuid: string) => {
+    world.removeVehicleByUUID(uuid);
+  });
 
-socket.on("zoneRemoved", (uuid: string) => {
-  world.removeByUUID(uuid);
-});
+  socket.on(
+    "user_action",
+    (data: { id: string; type: string; hasHit: boolean }) => {
+      if (data.type == "attack") {
+        const player = networkPlayers.get(data.id);
+        if (!player) return;
 
-socket.on("interactableRemoved", (uuid: string) => {
-  AudioManager.instance.playAudio("pickup", 0.1);
-  world.removeInteractableByUUID(uuid);
-});
+        const animList = ["MeleeMotion", "MeleeMotion_2"];
+        player.playAnimation(getRandomFromArray(animList));
 
-socket.on("vehicleRemoved", (uuid: string) => {
-  world.removeVehicleByUUID(uuid);
-});
-
-type UserActionData = {
-  id: string;
-  type: string;
-  hasHit: boolean;
-};
-
-socket.on("user_action", (data: UserActionData) => {
-  if (data.type == "attack") {
-    //attackAnim.stop();
-    //attackAnim.play();
-
-    const player = networkPlayers.get(data.id);
-    if (!player) return;
-
-    const animList = ["MeleeMotion", "MeleeMotion_2"];
-
-    player.playAnimation(getRandomFromArray(animList));
-
-    if (data.hasHit) {
-      AudioManager.instance.playAudio("punch_impact", 0.5);
+        if (data.hasHit) {
+          AudioManager.instance.playAudio("punch_impact", 0.5);
+        }
+      }
     }
-    //player.playAnimation("Melee", THREE.LoopOnce);
-  }
-});
-
-socket.on("addPlayer", (playerId: string) => {
-  const newPlayer = new ClientPlayer(playerId, "0xffffff", scene);
-
-  networkPlayers.set(playerId, newPlayer);
-});
-
-socket.on("removePlayer", (playerId: string) => {
-  const player = networkPlayers.get(playerId);
-  if (!player) return;
-  player.remove();
-  networkPlayers.delete(playerId);
-});
-
-type UpdateData = {
-  world: any;
-  players: NetworkPlayer;
-};
-
-socket.on("updateData", (data: UpdateData) => {
-  if (!worldIsReady) return;
-
-  for (const [key, value] of Object.entries(data.players)) {
-    let netPlayer = networkPlayers.get(key);
-
-    if (!netPlayer) {
-      const newPlayer = new ClientPlayer(key, "0xffffff", scene);
-      networkPlayers.set(key, newPlayer);
-      netPlayer = networkPlayers.get(key)!;
-    }
-
-    if (!netPlayer) {
-      console.log("no netplayer", socket.id);
-      return;
-    }
-
-    netPlayer.setState(value as any);
-  }
-
-  world.updateState(data.world);
-});
-
-function createPlayerMesh() {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      wireframe: false,
-    })
   );
 
-  mesh.castShadow = false;
+  socket.on("addPlayer", (playerId: string) => {
+    const newPlayer = new ClientPlayer(playerId, "0xffffff", scene);
+    networkPlayers.set(playerId, newPlayer);
+  });
 
-  return mesh;
+  socket.on("removePlayer", (playerId: string) => {
+    const player = networkPlayers.get(playerId);
+    if (!player) return;
+    player.remove();
+    networkPlayers.delete(playerId);
+  });
+
+  socket.on(
+    "updateData",
+    (data: { world: any; players: Record<string, NetworkPlayer> }) => {
+      if (!worldIsReady) return;
+
+      for (const [key, value] of Object.entries(data.players)) {
+        let netPlayer = networkPlayers.get(key);
+
+        if (!netPlayer) {
+          const newPlayer = new ClientPlayer(key, "0xffffff", scene);
+          networkPlayers.set(key, newPlayer);
+          netPlayer = newPlayer;
+        }
+
+        netPlayer.setState(value as any);
+      }
+
+      world.updateState(data.world);
+    }
+  );
 }
 
 // Camera follow
@@ -248,33 +191,6 @@ function updateCameraFollow() {
   const distance = InputManager.instance.cameraDistance;
   const height = 1;
 
-  // Sitting locked cam (unless right mouse is pressed)
-  // if (player.isSitting && !InputManager.instance.isKeyPressed("mouseRight")) {
-  //   const localOffset = new THREE.Vector3(0, 3, 6);
-  //   const offsetWorld = localOffset
-  //     .clone()
-  //     .applyQuaternion(player.getQuaternion());
-
-  //   const playerPosSmoothed = new THREE.Vector3().lerpVectors(
-  //     camera.position.clone().sub(offsetWorld),
-  //     player.getPosition(),
-  //     0.98
-  //   );
-
-  //   const targetPos = playerPosSmoothed.clone().add(offsetWorld);
-
-  //   camera.position.lerp(targetPos, 0.1); // smaller lerp factor for smoother movement
-  //   //camera.position.copy(targetPos);
-  //   camera.lookAt(
-  //     playerPosSmoothed.x,
-  //     playerPosSmoothed.y + 1,
-  //     playerPosSmoothed.z
-  //   );
-
-  //   return;
-  // }
-
-  // Orbit / Freecam
   if (isMobile()) {
     InputManager.instance.cameraYaw -= joystickX * mobileSens;
     InputManager.instance.cameraPitch -= joystickY * mobileSens;
@@ -308,47 +224,32 @@ function updateCameraFollow() {
   camera.lookAt(playerPos.x, playerPos.y + height, playerPos.z);
 }
 
-// function updateUI() {
-//   if (!localId) return;
+// Interactables
+function checkPlayerInteractables(player: ClientPlayer, world: World) {
+  let closestInteractable = null;
+  let minDist = Infinity;
 
-//   if (playerList) {
-//     playerList.innerHTML = `Players Online: ${networkPlayers.size}`;
-//   }
+  type InteractableType = { id: string; mesh: THREE.Mesh };
+  const interactables = world.interactables as InteractableType[];
 
-//   if (playerPositionUI) {
-//     const player = networkPlayers.get(localId);
-//     if (!player) return;
+  for (const interactable of interactables) {
+    const dist = player.getPosition().distanceTo(interactable.mesh.position);
+    if (dist < minDist) {
+      minDist = dist;
+      closestInteractable = interactable;
+    }
+  }
 
-//     playerPositionUI.innerHTML = `
-//     x: ${Math.floor(player.getPosition().x)}
-//     y: ${Math.floor(player.getPosition().y)}
-//     z: ${Math.floor(player.getPosition().z)}
-//     `;
+  return minDist <= 1.5;
+}
 
-//     if (playerHealthUI) {
-//       playerHealthUI.innerHTML = `${Math.floor(player.health)} HP`;
-//     }
-
-//     if (playerCoinsUI) {
-//       playerCoinsUI.innerHTML = `${player.coins} Coins`;
-//     }
-//   }
-// }
-
-function updateUI() {
-  if (!localId) return;
-
-  const player = networkPlayers.get(localId);
-
+// UI updates
+function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
   const eventData = {
     networkId: localId,
-    position: {
-      x: player?.getPosition().x,
-      y: player?.getPosition().y,
-      z: player?.getPosition().z,
-    },
-    health: player?.health,
-    coins: player?.coins,
+    position: player.getPosition(),
+    health: player.health,
+    coins: player.coins,
     playerCount: networkPlayers.size,
     ping: ping,
   };
@@ -356,24 +257,17 @@ function updateUI() {
   const event = new CustomEvent("player-update", { detail: eventData } as any);
   window.dispatchEvent(event);
 
-  const interactData = {
-    wantsToInteract: wantsToInteract,
-  };
-
   const interactEvent = new CustomEvent("ui-update", {
-    detail: interactData,
+    detail: { wantsToInteract },
   });
   window.dispatchEvent(interactEvent);
 }
 
-// Animation loop
-function animate() {
-  //requestAnimationFrame(animate);
+// Main animation loop
+function animate(world: World) {
   stats.begin();
-
   const delta = clock.getDelta();
 
-  // player
   if (!localId) return;
   const playerObject = networkPlayers.get(localId);
   if (!playerObject) return;
@@ -395,60 +289,38 @@ function animate() {
     player.update(delta);
   });
 
-  const localPlayer = networkPlayers.get(localId);
-
-  if (localPlayer) {
-    checkPlayerInteractables(localPlayer);
+  if (playerObject) {
+    const wantsToInteract = checkPlayerInteractables(playerObject, world);
+    updateUI(playerObject, wantsToInteract);
   }
 
   renderer.render(scene, camera);
 
   stats.end();
-  updateUI();
-  InputManager.instance.update();
+  inputManager.update();
 
-  requestAnimationFrame(animate);
+  requestAnimationFrame(() => animate(world));
 }
 
-function checkPlayerInteractables(player: ClientPlayer) {
-  let closestInteractable = null;
-  let minDist = Infinity;
-
-  type InteractableType = { id: string; mesh: THREE.Mesh };
-
-  const interactables = world.interactables as InteractableType[];
-
-  for (const interactable of interactables) {
-    const dist = player.getPosition().distanceTo(interactable.mesh.position);
-    if (dist < minDist) {
-      minDist = dist;
-      closestInteractable = interactable;
-    }
-  }
-
-  if (minDist <= 1.5) {
-    wantsToInteract = true;
-  } else {
-    wantsToInteract = false;
-  }
-}
-
+// Init
 async function init() {
   const assetsManager = AssetsManager.instance;
   await assetsManager.loadAll();
 
-  const player = new ClientPlayer(socket.id!, "0xffffff", scene, true);
+  const world = new World(scene);
+  world.init();
 
   if (!socket.id) {
     console.log("no socket id i.e. no connection");
     return;
   }
 
-  networkPlayers.set(socket.id, player);
+  localId = socket.id;
+  const player = new ClientPlayer(localId, "0xffffff", scene, true);
+  networkPlayers.set(localId, player);
 
-  // if (idElement) idElement.innerHTML = `Player ID: ${socket.id}`;
-
-  animate();
+  registerSocketEvents(world);
+  animate(world);
 
   const event = new CustomEvent("loading-status", {
     detail: { ready: true },
@@ -461,17 +333,17 @@ async function init() {
   }, 2000);
 }
 
+// Resize handling
 function resizeRenderer() {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
+window.addEventListener("resize", resizeRenderer);
 
-// Resize
-window.addEventListener("resize", () => {
-  resizeRenderer();
-  // camera.aspect = window.innerWidth / window.innerHeight;
-  // camera.updateProjectionMatrix();
-  // renderer.setSize(window.innerWidth, window.innerHeight);
+// Only run init AFTER socket connects
+socket.on("connect", () => {
+  console.log("Connected with server with id:", socket.id);
+  init();
 });

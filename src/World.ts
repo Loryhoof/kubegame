@@ -3,6 +3,7 @@ import Interactable from "./Interactable";
 import { AssetsManager } from "./AssetsManager";
 import ClientVehicle, { Wheel } from "./ClientVehicle";
 import { getRandomFromArray } from "./utils";
+import NetworkManager from "./NetworkManager";
 
 const loader = new THREE.TextureLoader();
 
@@ -38,6 +39,39 @@ export default class World {
     // this.scene.add(ground);
   }
 
+  registerObject(obj: THREE.Group) {
+    this.scene.add(obj);
+
+    const socket = NetworkManager.instance.getSocket();
+
+    const geometries: any[] = [];
+    const meshes: any[] = [];
+
+    obj.children.forEach((child) => {
+      if (child instanceof THREE.Mesh) {
+        geometries.push(child.geometry.clone());
+        meshes.push(child.clone());
+      }
+    });
+
+    geometries[0].applyMatrix4(meshes[0].matrixWorld);
+    geometries[0].attributes.position.needsUpdate = true;
+
+    const dataObject = {
+      position: obj.position,
+      quaternion: {
+        x: obj.quaternion.x,
+        y: obj.quaternion.y,
+        z: obj.quaternion.z,
+        w: obj.quaternion.w,
+      },
+      vertices: geometries[0].attributes.position.array,
+      indices: geometries[0].index.array,
+    };
+
+    socket.emit("register-object", dataObject);
+  }
+
   init() {
     const light = new THREE.DirectionalLight(0xffffff, 1);
     this.scene.add(light);
@@ -45,20 +79,20 @@ export default class World {
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     this.scene.add(ambientLight);
 
-    const texture = loader.load("/green.jpg");
+    const texture = loader.load("/prototype.jpg");
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(16 * 12, 16 * 12);
+    texture.repeat.set(16 * 8, 16 * 8);
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(1000, 1000, 1, 1),
+      new THREE.PlaneGeometry(500, 500, 1, 1),
       new THREE.MeshStandardMaterial({ map: texture })
     );
 
     const fogNear = 30;
     const fogFar = 200;
     const fog = new THREE.Fog(0x95f2f5, fogNear, fogFar);
-    this.scene.fog = fog;
+    //this.scene.fog = fog;
 
     ground.position.z = -10;
     ground.position.y = -0.5;
@@ -66,7 +100,15 @@ export default class World {
 
     ground.receiveShadow = true;
 
-    //this.scene.add(ground);
+    this.scene.add(ground);
+
+    //ramp
+    // const rampAsset = AssetsManager.instance.models.get("ramp") as any;
+    // const ramp = rampAsset.scene.clone();
+
+    // ramp.position.set(20, -0.5, 0);
+
+    // this.registerObject(ramp);
 
     // this.createInteractable(
     //   new THREE.Mesh(
@@ -158,26 +200,47 @@ export default class World {
     }
 
     if (entities) {
-      entities.forEach((zone: any) => {
-        const { id, width, height, depth, position, quaternion, color } = zone;
+      entities.forEach((entity: any) => {
+        const { type } = entity;
 
-        const entityMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(width, height, depth),
-          new THREE.MeshStandardMaterial({
-            color: new THREE.Color(color),
-          })
-        );
+        if (type == "box") {
+          const { id, width, height, depth, position, quaternion, color } =
+            entity;
 
-        entityMesh.position.set(position.x, position.y, position.z);
-        entityMesh.quaternion.set(
-          quaternion.x,
-          quaternion.y,
-          quaternion.z,
-          quaternion.w
-        );
+          const entityMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(width, height, depth),
+            new THREE.MeshStandardMaterial({
+              color: new THREE.Color(color),
+            })
+          );
 
-        this.entities.push({ id: id, mesh: entityMesh });
-        this.scene.add(entityMesh);
+          entityMesh.position.set(position.x, position.y, position.z);
+          entityMesh.quaternion.set(
+            quaternion.x,
+            quaternion.y,
+            quaternion.z,
+            quaternion.w
+          );
+
+          this.entities.push({ id: id, mesh: entityMesh });
+          this.scene.add(entityMesh);
+        }
+
+        if (type == "trimesh") {
+          const { id, position, quaternion, modelName } = entity;
+
+          const model = AssetsManager.instance.models
+            .get(modelName)
+            ?.scene.clone();
+
+          if (model) {
+            model.position.copy(position);
+            model.quaternion.copy(quaternion);
+
+            this.entities.push({ id: id, mesh: model });
+            this.scene.add(model);
+          }
+        }
       });
     }
 

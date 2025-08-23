@@ -8,6 +8,13 @@ interface ModelData {
   animations: THREE.AnimationClip[];
 }
 
+const glbModels = [
+  { key: "boxman", path: "/boxman_2.glb" },
+  { key: "car", path: "/car.glb" },
+  { key: "ramp", path: "/ramp.glb" },
+  { key: "ramp2", path: "/ramp2.glb" },
+];
+
 export class AssetsManager {
   private static _instance: AssetsManager | null = null;
 
@@ -20,12 +27,12 @@ export class AssetsManager {
     return this._instance;
   }
 
-  private boxmanModel?: ModelData;
-  private carModel?: ModelData;
+  public models: Map<string, ModelData> = new Map();
 
   async loadAll(): Promise<void> {
-    this.boxmanModel = await this.loadGLTF("/boxman_2.glb");
-    this.carModel = await this.loadGLTF("/car.glb");
+    glbModels.forEach(async (model) => {
+      this.models.set(model.key, await this.loadGLTF(model.path));
+    });
 
     await AudioManager.instance.loadAll();
   }
@@ -79,21 +86,34 @@ export class AssetsManager {
   getBoxmanClone():
     | { scene: THREE.Object3D; animations: THREE.AnimationClip[] }
     | undefined {
-    if (!this.boxmanModel) return undefined;
+    if (!this.models.get("boxman")) return undefined;
     return {
-      scene: clone(this.boxmanModel.scene),
-      animations: this.boxmanModel.animations.map((clip) => clip.clone()),
+      scene: clone(this.models.get("boxman")!.scene),
+      animations: this.models
+        .get("boxman")!
+        .animations.map((clip) => clip.clone()),
     };
   }
 
-  getCarClone(): { scene: THREE.Object3D } | undefined {
-    if (!this.carModel) {
-      console.log("No car model", this.carModel);
+  getRampClone(): { scene: THREE.Object3D } | undefined {
+    if (!this.models.get("ramp")) {
+      console.log("No ramp model", this.models.get("ramp"));
       return undefined;
     }
 
     return {
-      scene: clone(this.carModel.scene),
+      scene: clone(this.models.get("ramp")!.scene),
+    };
+  }
+
+  getCarClone(): { scene: THREE.Object3D } | undefined {
+    if (!this.models.get("car")) {
+      console.log("No car model", this.models.get("car"));
+      return undefined;
+    }
+
+    return {
+      scene: clone(this.models.get("car")!.scene),
     };
   }
 }
