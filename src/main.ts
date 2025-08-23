@@ -269,7 +269,7 @@ function animate(world: World) {
     lastSentState = payload;
   }
 
-  world.update();
+  world.update(delta);
   updateCameraFollow();
 
   networkPlayers.forEach((player: ClientPlayer) => {

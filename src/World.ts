@@ -4,11 +4,13 @@ import { AssetsManager } from "./AssetsManager";
 import ClientVehicle, { Wheel } from "./ClientVehicle";
 import { getRandomFromArray } from "./utils";
 import NetworkManager from "./NetworkManager";
+import ClientNPC from "./ClientNPC";
 
 const loader = new THREE.TextureLoader();
 
 type WorldStateData = {
   vehicles: ClientVehicle[];
+  npcs: ClientNPC[];
 };
 
 type TerrainData = {
@@ -25,6 +27,7 @@ export default class World {
   private entities: any[] = [];
   public interactables: any[] = [];
   public vehicles: ClientVehicle[] = [];
+  public npcs: any[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -146,8 +149,15 @@ export default class World {
   // }
 
   initWorldData(data: any) {
-    const { zones, colliders, entities, interactables, vehicles, terrains } =
-      data;
+    const {
+      zones,
+      colliders,
+      entities,
+      interactables,
+      vehicles,
+      terrains,
+      npcs,
+    } = data;
 
     if (zones) {
       zones.forEach((zone: any) => {
@@ -536,6 +546,13 @@ export default class World {
         this.scene.add(mesh);
       });
     }
+
+    if (npcs) {
+      npcs.forEach((npc: any) => {
+        const npcObject = new ClientNPC(npc.id, npc.color, this.scene, false);
+        this.npcs.push(npcObject);
+      });
+    }
   }
 
   addVehicle(data: any) {
@@ -638,9 +655,9 @@ export default class World {
   }
 
   updateState(data: WorldStateData) {
-    const { vehicles } = data;
+    const { vehicles, npcs } = data;
 
-    vehicles.forEach((networkVehicle) => {
+    vehicles?.forEach((networkVehicle) => {
       const clientVehicle = this.getObjById(
         networkVehicle.id,
         this.vehicles
@@ -655,11 +672,31 @@ export default class World {
         networkVehicle.hornPlaying
       );
     });
+
+    npcs?.forEach((networkNPC: any) => {
+      const clientNPC = this.getObjById(
+        networkNPC.networkId,
+        this.npcs
+      ) as ClientNPC;
+
+      if (!clientNPC) return;
+
+      clientNPC.setState({
+        position: networkNPC.position,
+        quaternion: networkNPC.quaternion,
+        velocity: networkNPC.velocity,
+        color: networkNPC.color,
+      });
+    });
   }
 
-  update() {
+  update(delta: number) {
     this.vehicles.forEach((vehicle: ClientVehicle) => {
       vehicle.update();
+    });
+
+    this.npcs.forEach((npc: ClientNPC) => {
+      npc.update(delta);
     });
     // this.interactables.forEach((item) => {});
     // this.entities.forEach((entity: Entity) => {
