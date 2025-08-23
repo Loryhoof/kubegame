@@ -75,19 +75,6 @@ const socket = NetworkManager.instance.getSocket();
 
 // ✅ Do not bind listeners immediately — only after init()
 function registerSocketEvents(world: World) {
-  socket.on("connect_error", (err: any) => {
-    console.error("Socket connection error:", err);
-    const event = new CustomEvent("loading-status", {
-      detail: {
-        error: {
-          title: "Connection error",
-          info: "The server appears to be unreachable, please try again later",
-        },
-      },
-    } as any);
-    window.dispatchEvent(event);
-  });
-
   setInterval(() => {
     const start = Date.now();
     socket.emit("pingCheck", start);
@@ -346,4 +333,17 @@ window.addEventListener("resize", resizeRenderer);
 socket.on("connect", () => {
   console.log("Connected with server with id:", socket.id);
   init();
+});
+
+socket.on("connect_error", (err: any) => {
+  console.error("Socket connection error:", err);
+  const event = new CustomEvent("loading-status", {
+    detail: {
+      error: {
+        title: "Connection error",
+        info: "The server appears to be unreachable, please try again later",
+      },
+    },
+  } as any);
+  window.dispatchEvent(event);
 });
