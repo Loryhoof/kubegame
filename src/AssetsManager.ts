@@ -12,7 +12,6 @@ const glbModels = [
   { key: "boxman", path: "/boxman_2.glb" },
   { key: "car", path: "/car.glb" },
   { key: "ramp", path: "/ramp.glb" },
-  { key: "ramp2", path: "/ramp2.glb" },
 ];
 
 export class AssetsManager {
