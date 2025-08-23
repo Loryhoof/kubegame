@@ -92,7 +92,7 @@ export default class InputManager {
     if (document.pointerLockElement !== this.renderer.domElement) return;
 
     this.cameraYaw -= e.movementX * this.cameraSensitivity;
-    this.cameraPitch -= e.movementY * this.cameraSensitivity;
+    this.cameraPitch += e.movementY * this.cameraSensitivity;
 
     const maxPitch = Math.PI / 3;
     const minPitch = -Math.PI / 12;
