@@ -21,7 +21,6 @@ type Snapshot = {
 };
 
 const snapshotBuffer: Snapshot[] = [];
-//const INTERP_DELAY = 100; // ms, typical value 100-200ms
 let serverTimeOffsetMs: number = 0;
 
 const stats = new Stats();
@@ -43,18 +42,17 @@ type NetworkPlayer = {
   keys: any;
   isSitting: boolean;
   controlledObject: any;
+  lastProcessedInputSeq?: number;
 };
 
 let ping = 0;
 const networkPlayers = new Map<string, ClientPlayer>();
-let lastSentState: any = {};
 
 // Scene
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x95f2f5);
 
 // Camera
-
 const camera = CameraManager.instance.getCamera();
 AudioManager.instance.attachToCamera(camera);
 
@@ -86,24 +84,6 @@ window.addEventListener("camera-controls", (e: any) => {
 // Networking
 const socket = NetworkManager.instance.getSocket();
 
-function catmullRom(
-  p0: THREE.Vector3,
-  p1: THREE.Vector3,
-  p2: THREE.Vector3,
-  p3: THREE.Vector3,
-  t: number
-) {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return p0
-    .clone()
-    .multiplyScalar(-0.5 * t3 + t2 - 0.5 * t)
-    .add(p1.clone().multiplyScalar(1.5 * t3 - 2.5 * t2 + 1.0))
-    .add(p2.clone().multiplyScalar(-1.5 * t3 + 2.0 * t2 + 0.5 * t))
-    .add(p3.clone().multiplyScalar(0.5 * t3 - 0.5 * t2));
-}
-
-// ✅ Do not bind listeners immediately — only after init()
 function registerSocketEvents(world: World) {
   setInterval(() => {
     const start = Date.now();
@@ -119,16 +99,10 @@ function registerSocketEvents(world: World) {
     const clientRecv = Date.now();
     const rtt = clientRecv - clientSent;
     const oneWay = rtt / 2;
-
-    // estimated offset = (serverTime when server responded) - (client time when we got it)
     serverTimeOffsetMs = serverNow + oneWay - clientRecv;
-    console.log("serverTimeOffsetMs", serverTimeOffsetMs);
   });
 
-  // call it a few times for better estimate
-  for (let i = 0; i < 5; i++) {
-    setTimeout(syncTime, i * 200);
-  }
+  for (let i = 0; i < 5; i++) setTimeout(syncTime, i * 200);
 
   socket.on("pongCheck", (startTime: number) => {
     ping = Date.now() - startTime;
@@ -196,33 +170,10 @@ function registerSocketEvents(world: World) {
     networkPlayers.delete(playerId);
   });
 
-  // socket.on(
-  //   "updateData",
-  //   (data: { world: any; players: Record<string, NetworkPlayer> }) => {
-  //     if (!worldIsReady) return;
-
-  //     for (const [key, value] of Object.entries(data.players)) {
-  //       let netPlayer = networkPlayers.get(key);
-
-  //       if (!netPlayer) {
-  //         const newPlayer = new ClientPlayer(key, "0xffffff", scene);
-  //         networkPlayers.set(key, newPlayer);
-  //         netPlayer = newPlayer;
-  //       }
-
-  //       netPlayer.setState(value as any);
-  //     }
-
-  //     world.updateState(data.world);
-  //   }
-  // );
-
   socket.on("updateData", (data) => {
-    if (!worldIsReady) return;
+    if (!worldIsReady || !localId) return;
 
-    if (!localId) return;
-
-    // --- handle local separately ---
+    // handle local separately
     const localState = data.players[localId];
     if (localState) {
       reconcileLocalPlayer(localState);
@@ -236,53 +187,35 @@ function registerSocketEvents(world: World) {
     });
 
     if (snapshotBuffer.length > 50) snapshotBuffer.shift();
-
     world.updateState(data.world);
   });
 }
 
-// Keep a small helper map for extrapolation state
-const extrapolationState = new Map<
-  string,
-  { basePos: THREE.Vector3; lastTime: number }
->();
+// ---------------- Reconciliation ----------------
+let inputSeq = 0;
+let pendingInputs: any[] = [];
 
-const serverTickMs = 1000 / 30;
-
-// vehicles?.forEach((networkVehicle) => {
-//   const clientVehicle = this.getObjById(
-//     networkVehicle.id,
-//     this.vehicles
-//   ) as ClientVehicle;
-
-//   if (!clientVehicle) return;
-
-//   clientVehicle.updateState(
-//     networkVehicle.position,
-//     networkVehicle.quaternion,
-//     networkVehicle.wheels,
-//     networkVehicle.hornPlaying
-//   );
-// });
-
-function reconcileLocalPlayer(
-  serverState: NetworkPlayer & { lastProcessedInputSeq?: number }
-) {
+function reconcileLocalPlayer(serverState: NetworkPlayer) {
   if (!localId) return;
-
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  // 1. Snap to server’s authoritative state
-  player.setPosition(
+  // 1. Hard snap to server’s authoritative state
+  player.lerpPosition(
     new THREE.Vector3(
       serverState.position.x,
       serverState.position.y,
       serverState.position.z
-    )
+    ),
+    1
   );
   player.slerpQuaternion(
-    new THREE.Quaternion().copy(serverState.quaternion),
+    new THREE.Quaternion(
+      serverState.quaternion.x,
+      serverState.quaternion.y,
+      serverState.quaternion.z,
+      serverState.quaternion.w
+    ),
     0.15
   );
   player.velocity.set(
@@ -293,147 +226,31 @@ function reconcileLocalPlayer(
   player.health = serverState.health;
   player.coins = serverState.coins;
 
-  // 2. Drop all confirmed inputs
+  // 2. Drop confirmed inputs
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
       (input) => input.seq > serverState.lastProcessedInputSeq!
     );
   }
 
-  // 3. Replay unconfirmed inputs on top of server state
+  // 3. Replay unconfirmed inputs
   for (const input of pendingInputs) {
-    player.predictMovement(input.dt, input.keys);
+    player.predictMovement(input.dt, input.keys, input.quaternion);
   }
 }
 
-function interpolateVehicles() {
-  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
-
-  if (snapshotBuffer.length < 2) return;
-
-  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
-
-  let older: Snapshot | null = null;
-  let newer: Snapshot | null = null;
-
-  for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
-    if (snapshotBuffer[i].time <= renderServerTime) {
-      older = snapshotBuffer[i];
-      newer = snapshotBuffer[i + 1] || null;
-      break;
-    }
-  }
-
-  if (!older) return;
-
-  // --- Case 1: Normal interpolation ---
-  if (newer) {
-    // Clear extrapolation state (we’re back on track)
-    extrapolationState.clear();
-
-    const dt = newer.time - older.time;
-    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
-    const t = Math.max(0, Math.min(1, alpha));
-
-    for (let i = 0; i < older.vehicles.length; i++) {
-      const pOld = older.vehicles[i] as ClientVehicle;
-      const pNew = newer.vehicles[i] || pOld;
-
-      // let netPlayer = networkPlayers.get(id);
-      // if (!netPlayer) {
-      //   netPlayer = new ClientPlayer(id, pOld.color, scene);
-      //   networkPlayers.set(id, netPlayer);
-      // }
-
-      const clientVehicle = world?.getObjById(pOld.id, world.vehicles);
-      if (!clientVehicle) return;
-
-      const posOld = new THREE.Vector3(
-        pOld.position.x,
-        pOld.position.y,
-        pOld.position.z
-      );
-      const posNew = new THREE.Vector3(
-        pNew.position.x,
-        pNew.position.y,
-        pNew.position.z
-      );
-      const targetPos = posOld.lerp(posNew, t);
-
-      const quatOld = new THREE.Quaternion(
-        pOld.quaternion.x,
-        pOld.quaternion.y,
-        pOld.quaternion.z,
-        pOld.quaternion.w
-      );
-      const quatNew = new THREE.Quaternion(
-        pNew.quaternion.x,
-        pNew.quaternion.y,
-        pNew.quaternion.z,
-        pNew.quaternion.w
-      );
-      const targetQuat = quatOld.slerp(quatNew, t);
-
-      const oldWheels = pOld.wheels;
-      const newWheels = (pNew as ClientVehicle).wheels;
-
-      const targetWheels: any[] = [];
-
-      for (let wheelIndex = 0; wheelIndex < oldWheels.length; wheelIndex++) {
-        const oldWheel = oldWheels[wheelIndex];
-        const newWheel = newWheels[wheelIndex];
-
-        const oldWheelPos = new THREE.Vector3(
-          oldWheel.worldPosition.x,
-          oldWheel.worldPosition.y,
-          oldWheel.worldPosition.z
-        );
-        const newWheelPos = new THREE.Vector3(
-          newWheel.worldPosition.x,
-          newWheel.worldPosition.y,
-          newWheel.worldPosition.z
-        );
-
-        const targetWheelPos = oldWheelPos.lerp(newWheelPos, t);
-
-        const oldWheelQuat = new THREE.Quaternion(
-          oldWheel.quaternion.x,
-          oldWheel.quaternion.y,
-          oldWheel.quaternion.z,
-          oldWheel.quaternion.w
-        );
-        const newWheelQuat = new THREE.Quaternion(
-          newWheel.quaternion.x,
-          newWheel.quaternion.y,
-          newWheel.quaternion.z,
-          newWheel.quaternion.w
-        );
-
-        const targetWheelQuat = oldWheelQuat.slerp(newWheelQuat, t);
-
-        targetWheels[wheelIndex] = {
-          worldPosition: targetWheelPos,
-          quaternion: targetWheelQuat,
-        };
-      }
-
-      clientVehicle.updateState(
-        targetPos,
-        targetQuat,
-        targetWheels,
-        (pNew as ClientVehicle).hornPlaying
-      );
-    }
-  }
-}
+// ---------------- Interpolation ----------------
+const extrapolationState = new Map<
+  string,
+  { basePos: THREE.Vector3; lastTime: number }
+>();
+const serverTickMs = 1000 / 30;
 
 function interpolatePlayers() {
   const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
-
   if (snapshotBuffer.length < 2) return;
 
   const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
-
   let older: Snapshot | null = null;
   let newer: Snapshot | null = null;
 
@@ -444,14 +261,10 @@ function interpolatePlayers() {
       break;
     }
   }
-
   if (!older) return;
 
-  // --- Case 1: Normal interpolation ---
   if (newer) {
-    // Clear extrapolation state (we’re back on track)
     extrapolationState.clear();
-
     const dt = newer.time - older.time;
     const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
     const t = Math.max(0, Math.min(1, alpha));
@@ -461,8 +274,7 @@ function interpolatePlayers() {
       const pNew = newer.players[id] || pOld;
 
       let netPlayer = networkPlayers.get(id);
-
-      if (netPlayer?.isLocalPlayer) return;
+      if (id === localId) continue; // skip local, reconciliation handles it
 
       if (!netPlayer) {
         netPlayer = new ClientPlayer(id, pOld.color, scene);
@@ -520,56 +332,117 @@ function interpolatePlayers() {
       });
     }
   }
+}
 
-  // --- Case 2: Extrapolation ---
-  else {
-    const delta = clock.getDelta(); // per-frame delta
+function interpolateVehicles() {
+  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
+  if (snapshotBuffer.length < 2) return;
 
-    for (const id in older.players) {
-      const p = older.players[id];
+  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
+  let older: Snapshot | null = null;
+  let newer: Snapshot | null = null;
 
-      let netPlayer = networkPlayers.get(id);
-      if (!netPlayer) {
-        netPlayer = new ClientPlayer(id, p.color, scene);
-        networkPlayers.set(id, netPlayer);
-      }
+  for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
+    if (snapshotBuffer[i].time <= renderServerTime) {
+      older = snapshotBuffer[i];
+      newer = snapshotBuffer[i + 1] || null;
+      break;
+    }
+  }
+  if (!older) return;
 
-      // Get or create extrapolation state
-      let state = extrapolationState.get(id);
-      if (!state) {
-        state = {
-          basePos: new THREE.Vector3(p.position.x, p.position.y, p.position.z),
-          lastTime: Date.now(),
-        };
-        extrapolationState.set(id, state);
-      }
+  if (newer) {
+    extrapolationState.clear();
+    const dt = newer.time - older.time;
+    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
+    const t = Math.max(0, Math.min(1, alpha));
 
-      // Advance forward smoothly
-      const vel = new THREE.Vector3(p.velocity.x, p.velocity.y, p.velocity.z);
-      const advance = vel.clone().multiplyScalar(delta);
+    for (let i = 0; i < older.vehicles.length; i++) {
+      const pOld = older.vehicles[i] as ClientVehicle;
+      const pNew = newer.vehicles[i] || pOld;
 
-      state.basePos.add(advance);
+      const clientVehicle = world?.getObjById(pOld.id, world.vehicles);
+      if (!clientVehicle) return;
 
-      // Cap drift at ~250ms
-      if (Date.now() - older.time > 250) return;
-
-      // Blend visible player toward prediction
-      netPlayer.getPosition().lerp(state.basePos, 0.8);
-
-      const quat = new THREE.Quaternion(
-        p.quaternion.x,
-        p.quaternion.y,
-        p.quaternion.z,
-        p.quaternion.w
+      const posOld = new THREE.Vector3(
+        pOld.position.x,
+        pOld.position.y,
+        pOld.position.z
       );
-      netPlayer.getQuaternion().slerp(quat, 0.2);
+      const posNew = new THREE.Vector3(
+        pNew.position.x,
+        pNew.position.y,
+        pNew.position.z
+      );
+      const targetPos = posOld.lerp(posNew, t);
 
-      netPlayer.velocity.copy(vel);
+      const quatOld = new THREE.Quaternion(
+        pOld.quaternion.x,
+        pOld.quaternion.y,
+        pOld.quaternion.z,
+        pOld.quaternion.w
+      );
+      const quatNew = new THREE.Quaternion(
+        pNew.quaternion.x,
+        pNew.quaternion.y,
+        pNew.quaternion.z,
+        pNew.quaternion.w
+      );
+      const targetQuat = quatOld.slerp(quatNew, t);
+
+      const oldWheels = pOld.wheels;
+      const newWheels = (pNew as ClientVehicle).wheels;
+      const targetWheels: any[] = [];
+
+      for (let wheelIndex = 0; wheelIndex < oldWheels.length; wheelIndex++) {
+        const oldWheel = oldWheels[wheelIndex];
+        const newWheel = newWheels[wheelIndex];
+
+        const oldWheelPos = new THREE.Vector3(
+          oldWheel.worldPosition.x,
+          oldWheel.worldPosition.y,
+          oldWheel.worldPosition.z
+        );
+        const newWheelPos = new THREE.Vector3(
+          newWheel.worldPosition.x,
+          newWheel.worldPosition.y,
+          newWheel.worldPosition.z
+        );
+
+        const targetWheelPos = oldWheelPos.lerp(newWheelPos, t);
+
+        const oldWheelQuat = new THREE.Quaternion(
+          oldWheel.quaternion.x,
+          oldWheel.quaternion.y,
+          oldWheel.quaternion.z,
+          oldWheel.quaternion.w
+        );
+        const newWheelQuat = new THREE.Quaternion(
+          newWheel.quaternion.x,
+          newWheel.quaternion.y,
+          newWheel.quaternion.z,
+          newWheel.quaternion.w
+        );
+
+        const targetWheelQuat = oldWheelQuat.slerp(newWheelQuat, t);
+
+        targetWheels[wheelIndex] = {
+          worldPosition: targetWheelPos,
+          quaternion: targetWheelQuat,
+        };
+      }
+
+      clientVehicle.updateState(
+        targetPos,
+        targetQuat,
+        targetWheels,
+        (pNew as ClientVehicle).hornPlaying
+      );
     }
   }
 }
 
-// Camera follow
+// ---------------- Camera ----------------
 function updateCameraFollow() {
   if (!localId) return;
   const player = networkPlayers.get(localId);
@@ -612,7 +485,7 @@ function updateCameraFollow() {
   camera.lookAt(playerPos.x, playerPos.y + height, playerPos.z);
 }
 
-// Interactables
+// ---------------- Interactables ----------------
 function checkPlayerInteractables(player: ClientPlayer, world: World) {
   let closestInteractable = null;
   let minDist = Infinity;
@@ -631,7 +504,7 @@ function checkPlayerInteractables(player: ClientPlayer, world: World) {
   return minDist <= 1.5;
 }
 
-// UI updates
+// ---------------- UI ----------------
 function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
   const eventData = {
     networkId: localId,
@@ -641,20 +514,15 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
     playerCount: networkPlayers.size,
     ping: ping,
   };
-
-  const event = new CustomEvent("player-update", { detail: eventData } as any);
-  window.dispatchEvent(event);
-
-  const interactEvent = new CustomEvent("ui-update", {
-    detail: { wantsToInteract },
-  });
-  window.dispatchEvent(interactEvent);
+  window.dispatchEvent(new CustomEvent("player-update", { detail: eventData }));
+  window.dispatchEvent(
+    new CustomEvent("ui-update", { detail: { wantsToInteract } })
+  );
 }
 
-// Main animation loop
-
-let inputSeq = 0;
-let pendingInputs: any[] = [];
+// ---------------- Animate ----------------
+const FIXED_DT = 1 / 30;
+let accumulator = 0;
 
 function animate(world: World) {
   stats.begin();
@@ -664,22 +532,23 @@ function animate(world: World) {
   const playerObject = networkPlayers.get(localId);
   if (!playerObject) return;
 
-  const payload = {
-    seq: inputSeq++,
-    dt: 1 / 30,
-    keys: inputManager.getState(),
-    quaternion: camera.quaternion.clone(),
-  };
-  pendingInputs.push(payload);
-
-  if (JSON.stringify(payload) !== JSON.stringify(lastSentState)) {
-    socket.emit("playerInput", payload);
-    lastSentState = payload;
+  accumulator += delta;
+  while (accumulator >= FIXED_DT) {
+    const keys = InputManager.instance.getState();
+    const input = {
+      seq: inputSeq++,
+      dt: FIXED_DT,
+      keys,
+      quaternion: camera.quaternion.clone(),
+    };
+    pendingInputs.push(input);
+    socket.emit("playerInput", input);
+    playerObject.predictMovement(FIXED_DT, keys, input.quaternion);
+    accumulator -= FIXED_DT;
   }
 
-  world.update(delta);
+  world.update(FIXED_DT); // fixed tick
   updateCameraFollow();
-
   interpolatePlayers();
   interpolateVehicles();
 
@@ -693,14 +562,12 @@ function animate(world: World) {
   }
 
   renderer.render(scene, camera);
-
   stats.end();
   inputManager.update();
-
   requestAnimationFrame(() => animate(world));
 }
 
-// Init
+// ---------------- Init ----------------
 async function init() {
   const assetsManager = AssetsManager.instance;
   await assetsManager.loadAll();
@@ -720,27 +587,23 @@ async function init() {
   registerSocketEvents(world);
   animate(world);
 
-  const event = new CustomEvent("loading-status", {
-    detail: { ready: true },
-  } as any);
-  window.dispatchEvent(event);
-
+  window.dispatchEvent(
+    new CustomEvent("loading-status", { detail: { ready: true } })
+  );
   setTimeout(() => {
     worldIsReady = true;
     socket.emit("readyForWorld");
   }, 2000);
 }
 
-// Resize handling
+// Resize
 function resizeRenderer() {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
 }
 window.addEventListener("resize", resizeRenderer);
 
-// Only run init AFTER socket connects
 socket.on("connect", () => {
   console.log("Connected with server with id:", socket.id);
   init();
@@ -748,13 +611,14 @@ socket.on("connect", () => {
 
 socket.on("connect_error", (err: any) => {
   console.error("Socket connection error:", err);
-  const event = new CustomEvent("loading-status", {
-    detail: {
-      error: {
-        title: "Connection error",
-        info: "The server appears to be unreachable, please try again later",
+  window.dispatchEvent(
+    new CustomEvent("loading-status", {
+      detail: {
+        error: {
+          title: "Connection error",
+          info: "The server appears to be unreachable, please try again later",
+        },
       },
-    },
-  } as any);
-  window.dispatchEvent(event);
+    })
+  );
 });

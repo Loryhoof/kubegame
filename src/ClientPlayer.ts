@@ -158,6 +158,10 @@ class ClientPlayer {
     this.dummy.position.copy(position);
   }
 
+  lerpPosition(position: THREE.Vector3, t: number) {
+    this.dummy.position.lerp(position, t);
+  }
+
   setQuaternion(quaternion: THREE.Quaternion) {
     this.dummy.quaternion.copy(quaternion);
   }
@@ -182,48 +186,50 @@ class ClientPlayer {
     this.scene.remove(this.dummy);
   }
 
-  predictMovement(delta: number, keys?: any) {
+  predictMovement(delta: number, keys?: any, quat?: THREE.Quaternion) {
     if (!this.isLocalPlayer) return;
 
-    // 1. Use provided keys (reconciliation) or live keys (InputManager)
+    // Use provided keys (replay) or current keys (live)
     const input = keys || InputManager.instance.getState();
-
     const inputDir = new THREE.Vector3();
-    const speedFactor = input.shift ? 2 : 1;
+
+    const speedFactor = input.shift ? 6 : 3;
 
     if (input.w) inputDir.z = -1;
     if (input.s) inputDir.z = 1;
     if (input.a) inputDir.x = -1;
     if (input.d) inputDir.x = 1;
 
-    // If no input → stop velocity, don’t rotate
+    // no input → stop velocity
     if (inputDir.lengthSq() === 0) {
       this.velocity.set(0, 0, 0);
       return;
     }
 
-    // Normalize input direction
     inputDir.normalize();
 
-    // 2. Use only camera yaw for movement direction
-    const camera = CameraManager.instance.getCamera();
+    // Use camera yaw at input time:
+    // - live prediction uses CameraManager
+    // - replay uses saved quat passed in
+    const camQuat = quat || CameraManager.instance.getCamera().quaternion;
+
     const euler = new THREE.Euler(0, 0, 0, "YXZ");
-    euler.setFromQuaternion(camera.quaternion);
+    euler.setFromQuaternion(camQuat);
 
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
       euler.y
     );
 
-    // Apply yaw-only rotation to input direction
+    // rotate input dir into world space
     const displacement = inputDir.applyQuaternion(yawQuat);
 
-    // 3. Apply movement
+    // apply movement
     displacement.multiplyScalar(delta * speedFactor);
     this.velocity.copy(displacement);
     this.dummy.position.add(displacement);
 
-    // 4. Face movement direction
+    // rotate player to face movement direction
     const yaw = Math.atan2(-displacement.x, -displacement.z);
     const targetQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
@@ -503,7 +509,7 @@ class ClientPlayer {
   }
 
   update(delta: number) {
-    this.predictMovement(delta);
+    // this.predictMovement(delta);
     this.updateAnimationState(delta);
     this.updateAudio();
     this.mixer.update(delta);
