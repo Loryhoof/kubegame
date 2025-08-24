@@ -206,8 +206,13 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.position.z
   );
 
+  const error = serverPos.clone().sub(player.getPosition());
+  if (error.length() > 0.05) {
+    player.dummy.position.add(error.multiplyScalar(0.5)); // smooth catch-up
+  }
+
   // instead of teleport
-  player.lerpPosition(serverPos, 1); // blend toward server pos
+  // player.setPosition(serverPos); // blend toward server pos
 
   // rotation correction only if far off
   const serverQuat = new THREE.Quaternion(
@@ -443,6 +448,9 @@ function interpolateVehicles() {
 }
 
 // ---------------- Camera ----------------
+const smoothCameraPos = new THREE.Vector3();
+const smoothLookAt = new THREE.Vector3();
+
 function updateCameraFollow() {
   if (!localId) return;
   const player = networkPlayers.get(localId);
@@ -452,11 +460,13 @@ function updateCameraFollow() {
   const distance = InputManager.instance.cameraDistance;
   const height = 1;
 
+  // Mobile joystick rotation
   if (isMobile()) {
     InputManager.instance.cameraYaw -= joystickX * mobileSens;
     InputManager.instance.cameraPitch -= joystickY * mobileSens;
   }
 
+  // Clamp pitch
   const maxPitch = Math.PI / 3;
   const minPitch = -Math.PI / 12;
   InputManager.instance.cameraPitch = Math.max(
@@ -464,6 +474,7 @@ function updateCameraFollow() {
     Math.min(maxPitch, InputManager.instance.cameraPitch)
   );
 
+  // Desired camera offset
   const offsetX =
     distance *
     Math.sin(InputManager.instance.cameraYaw) *
@@ -475,14 +486,26 @@ function updateCameraFollow() {
     Math.cos(InputManager.instance.cameraYaw) *
     Math.cos(InputManager.instance.cameraPitch);
 
-  const desiredPosition = new THREE.Vector3(
+  const desiredCameraPos = new THREE.Vector3(
     playerPos.x + offsetX,
     playerPos.y + offsetY,
     playerPos.z + offsetZ
   );
 
-  camera.position.copy(desiredPosition);
-  camera.lookAt(playerPos.x, playerPos.y + height, playerPos.z);
+  // Smooth camera position
+  smoothCameraPos.lerp(desiredCameraPos, 1);
+
+  // Smooth look-at target (reduces world jitter)
+  const desiredLookAt = new THREE.Vector3(
+    playerPos.x,
+    playerPos.y + height,
+    playerPos.z
+  );
+  smoothLookAt.lerp(desiredLookAt, 1);
+
+  // Apply
+  camera.position.copy(smoothCameraPos);
+  camera.lookAt(smoothLookAt);
 }
 
 // ---------------- Interactables ----------------

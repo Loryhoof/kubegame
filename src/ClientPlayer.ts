@@ -30,7 +30,7 @@ class ClientPlayer {
   public model: THREE.Object3D | any;
   public readonly scene: THREE.Scene;
   public readonly mixer: THREE.AnimationMixer;
-  private dummy: THREE.Object3D = new THREE.Object3D();
+  public dummy: THREE.Object3D = new THREE.Object3D();
   private hasInit: boolean = false;
   private keys: Record<string, boolean> = {};
 
