@@ -22,7 +22,7 @@ export default function InfoBar() {
         </>
       )}
 
-      <p className="pt-2">Kubegame v0.1.67</p>
+      <p className="pt-2">Kubegame v0.1.68</p>
     </div>
   );
 }

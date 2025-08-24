@@ -200,24 +200,26 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  // 1. Hard snap to server’s authoritative state
-  player.lerpPosition(
-    new THREE.Vector3(
-      serverState.position.x,
-      serverState.position.y,
-      serverState.position.z
-    ),
-    1
+  const serverPos = new THREE.Vector3(
+    serverState.position.x,
+    serverState.position.y,
+    serverState.position.z
   );
-  player.slerpQuaternion(
-    new THREE.Quaternion(
-      serverState.quaternion.x,
-      serverState.quaternion.y,
-      serverState.quaternion.z,
-      serverState.quaternion.w
-    ),
-    0.15
+
+  // instead of teleport
+  player.lerpPosition(serverPos, 0.3); // blend toward server pos
+
+  // rotation correction only if far off
+  const serverQuat = new THREE.Quaternion(
+    serverState.quaternion.x,
+    serverState.quaternion.y,
+    serverState.quaternion.z,
+    serverState.quaternion.w
   );
+  if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
+    player.slerpQuaternion(serverQuat, 0.25);
+  }
+
   player.velocity.set(
     serverState.velocity.x,
     serverState.velocity.y,
@@ -226,14 +228,12 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   player.health = serverState.health;
   player.coins = serverState.coins;
 
-  // 2. Drop confirmed inputs
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
       (input) => input.seq > serverState.lastProcessedInputSeq!
     );
   }
 
-  // 3. Replay unconfirmed inputs
   for (const input of pendingInputs) {
     player.predictMovement(input.dt, input.keys, input.quaternion);
   }
