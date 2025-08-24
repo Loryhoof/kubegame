@@ -281,13 +281,9 @@ function reconcileLocalPlayer(
       serverState.position.z
     )
   );
-  player.setQuaternion(
-    new THREE.Quaternion(
-      serverState.quaternion.x,
-      serverState.quaternion.y,
-      serverState.quaternion.z,
-      serverState.quaternion.w
-    )
+  player.slerpQuaternion(
+    new THREE.Quaternion().copy(serverState.quaternion),
+    0.15
   );
   player.velocity.set(
     serverState.velocity.x,

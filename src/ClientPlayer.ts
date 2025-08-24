@@ -170,6 +170,10 @@ class ClientPlayer {
     return this.dummy.position;
   }
 
+  slerpQuaternion(quat: THREE.Quaternion, t: number) {
+    this.dummy.quaternion.slerp(quat, t);
+  }
+
   getQuaternion() {
     return this.dummy.quaternion;
   }
@@ -185,7 +189,7 @@ class ClientPlayer {
     const input = keys || InputManager.instance.getState();
 
     const inputDir = new THREE.Vector3();
-    const speedFactor = input.shift ? 4 : 2;
+    const speedFactor = input.shift ? 2 : 1;
 
     if (input.w) inputDir.z = -1;
     if (input.s) inputDir.z = 1;
