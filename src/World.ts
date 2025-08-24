@@ -673,21 +673,21 @@ export default class World {
     //   );
     // });
 
-    npcs?.forEach((networkNPC: any) => {
-      const clientNPC = this.getObjById(
-        networkNPC.networkId,
-        this.npcs
-      ) as ClientNPC;
+    // npcs?.forEach((networkNPC: any) => {
+    //   const clientNPC = this.getObjById(
+    //     networkNPC.networkId,
+    //     this.npcs
+    //   ) as ClientNPC;
 
-      if (!clientNPC) return;
+    //   if (!clientNPC) return;
 
-      clientNPC.setState({
-        position: networkNPC.position,
-        quaternion: networkNPC.quaternion,
-        velocity: networkNPC.velocity,
-        color: networkNPC.color,
-      });
-    });
+    //   clientNPC.setState({
+    //     position: networkNPC.position,
+    //     quaternion: networkNPC.quaternion,
+    //     velocity: networkNPC.velocity,
+    //     color: networkNPC.color,
+    //   });
+    // });
   }
 
   update(delta: number) {

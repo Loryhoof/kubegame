@@ -11,6 +11,7 @@ import NetworkManager from "./NetworkManager";
 import ChatManager from "./ChatManager";
 import ClientVehicle from "./ClientVehicle";
 import CameraManager from "./CameraManager";
+import ClientNPC from "./ClientNPC";
 
 let world: World | null = null;
 
@@ -18,6 +19,7 @@ type Snapshot = {
   time: number; // server time of snapshot (ms)
   players: Record<string, NetworkPlayer>;
   vehicles: any;
+  npcs: any;
 };
 
 const snapshotBuffer: Snapshot[] = [];
@@ -184,6 +186,7 @@ function registerSocketEvents(world: World) {
       time: data.time,
       players: data.players,
       vehicles: data.world.vehicles,
+      npcs: data.world.npcs,
     });
 
     if (snapshotBuffer.length > 50) snapshotBuffer.shift();
@@ -449,6 +452,77 @@ function interpolateVehicles() {
   }
 }
 
+function interpolateNPCs() {
+  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
+  if (snapshotBuffer.length < 2) return;
+
+  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
+  let older: Snapshot | null = null;
+  let newer: Snapshot | null = null;
+
+  for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
+    if (snapshotBuffer[i].time <= renderServerTime) {
+      older = snapshotBuffer[i];
+      newer = snapshotBuffer[i + 1] || null;
+      break;
+    }
+  }
+  if (!older) return;
+
+  if (newer) {
+    extrapolationState.clear();
+    const dt = newer.time - older.time;
+    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
+    const t = Math.max(0, Math.min(1, alpha));
+
+    for (let i = 0; i < older.npcs.length; i++) {
+      const pOld = older.npcs[i] as any;
+      const pNew = newer.npcs[i] || pOld;
+
+      const clientNPC = world?.getObjById(pOld.networkId, world.npcs);
+      if (!clientNPC) return;
+
+      const posOld = new THREE.Vector3(
+        pOld.position.x,
+        pOld.position.y,
+        pOld.position.z
+      );
+      const posNew = new THREE.Vector3(
+        pNew.position.x,
+        pNew.position.y,
+        pNew.position.z
+      );
+      const targetPos = posOld.lerp(posNew, t);
+
+      const quatOld = new THREE.Quaternion(
+        pOld.quaternion.x,
+        pOld.quaternion.y,
+        pOld.quaternion.z,
+        pOld.quaternion.w
+      );
+      const quatNew = new THREE.Quaternion(
+        pNew.quaternion.x,
+        pNew.quaternion.y,
+        pNew.quaternion.z,
+        pNew.quaternion.w
+      );
+      const targetQuat = quatOld.slerp(quatNew, t);
+
+      clientNPC.setState({
+        position: targetPos,
+        quaternion: targetQuat,
+        color: pNew.color,
+        health: pNew.health,
+        coins: pNew.coins,
+        velocity: pNew.velocity,
+        keys: pNew.keys,
+        isSitting: pNew.isSitting,
+        controlledObject: pNew.controlledObject,
+      });
+    }
+  }
+}
+
 // ---------------- Camera ----------------
 const smoothCameraPos = new THREE.Vector3();
 const smoothLookAt = new THREE.Vector3();
@@ -576,6 +650,7 @@ function animate(world: World) {
   updateCameraFollow();
   interpolatePlayers();
   interpolateVehicles();
+  interpolateNPCs();
 
   networkPlayers.forEach((player: ClientPlayer) => {
     player.update(delta);
