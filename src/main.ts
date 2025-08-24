@@ -596,9 +596,11 @@ async function init() {
   }, 2000);
 }
 
-// Resize
 function resizeRenderer() {
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  // update renderer canvas size
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // update camera aspect ratio
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 }
