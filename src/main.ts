@@ -10,6 +10,7 @@ import Stats from "stats.js";
 import NetworkManager from "./NetworkManager";
 import ChatManager from "./ChatManager";
 import ClientVehicle from "./ClientVehicle";
+import CameraManager from "./CameraManager";
 
 let world: World | null = null;
 
@@ -53,13 +54,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x95f2f5);
 
 // Camera
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.set(0, 2, 5);
+
+const camera = CameraManager.instance.getCamera();
 AudioManager.instance.attachToCamera(camera);
 
 // Renderer
@@ -221,27 +217,28 @@ function registerSocketEvents(world: World) {
   //   }
   // );
 
-  socket.on(
-    "updateData",
-    (data: {
-      time: number;
-      world: any;
-      players: Record<string, NetworkPlayer>;
-    }) => {
-      if (!worldIsReady) return;
+  socket.on("updateData", (data) => {
+    if (!worldIsReady) return;
 
-      snapshotBuffer.push({
-        time: data.time,
-        players: data.players,
-        vehicles: data.world.vehicles,
-      });
+    if (!localId) return;
 
-      // keep buffer small
-      if (snapshotBuffer.length > 50) snapshotBuffer.shift();
-
-      world.updateState(data.world);
+    // --- handle local separately ---
+    const localState = data.players[localId];
+    if (localState) {
+      reconcileLocalPlayer(localState);
+      delete data.players[localId];
     }
-  );
+
+    snapshotBuffer.push({
+      time: data.time,
+      players: data.players,
+      vehicles: data.world.vehicles,
+    });
+
+    if (snapshotBuffer.length > 50) snapshotBuffer.shift();
+
+    world.updateState(data.world);
+  });
 }
 
 // Keep a small helper map for extrapolation state
@@ -267,6 +264,51 @@ const serverTickMs = 1000 / 30;
 //     networkVehicle.hornPlaying
 //   );
 // });
+
+function reconcileLocalPlayer(
+  serverState: NetworkPlayer & { lastProcessedInputSeq?: number }
+) {
+  if (!localId) return;
+
+  const player = networkPlayers.get(localId);
+  if (!player) return;
+
+  // 1. Snap to server’s authoritative state
+  player.setPosition(
+    new THREE.Vector3(
+      serverState.position.x,
+      serverState.position.y,
+      serverState.position.z
+    )
+  );
+  player.setQuaternion(
+    new THREE.Quaternion(
+      serverState.quaternion.x,
+      serverState.quaternion.y,
+      serverState.quaternion.z,
+      serverState.quaternion.w
+    )
+  );
+  player.velocity.set(
+    serverState.velocity.x,
+    serverState.velocity.y,
+    serverState.velocity.z
+  );
+  player.health = serverState.health;
+  player.coins = serverState.coins;
+
+  // 2. Drop all confirmed inputs
+  if (serverState.lastProcessedInputSeq !== undefined) {
+    pendingInputs = pendingInputs.filter(
+      (input) => input.seq > serverState.lastProcessedInputSeq!
+    );
+  }
+
+  // 3. Replay unconfirmed inputs on top of server state
+  for (const input of pendingInputs) {
+    player.predictMovement(input.dt, input.keys);
+  }
+}
 
 function interpolateVehicles() {
   const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
@@ -423,6 +465,9 @@ function interpolatePlayers() {
       const pNew = newer.players[id] || pOld;
 
       let netPlayer = networkPlayers.get(id);
+
+      if (netPlayer?.isLocalPlayer) return;
+
       if (!netPlayer) {
         netPlayer = new ClientPlayer(id, pOld.color, scene);
         networkPlayers.set(id, netPlayer);
@@ -611,6 +656,10 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
 }
 
 // Main animation loop
+
+let inputSeq = 0;
+let pendingInputs: any[] = [];
+
 function animate(world: World) {
   stats.begin();
   const delta = clock.getDelta();
@@ -620,9 +669,12 @@ function animate(world: World) {
   if (!playerObject) return;
 
   const payload = {
+    seq: inputSeq++,
+    dt: 1 / 30,
     keys: inputManager.getState(),
     quaternion: camera.quaternion.clone(),
   };
+  pendingInputs.push(payload);
 
   if (JSON.stringify(payload) !== JSON.stringify(lastSentState)) {
     socket.emit("playerInput", payload);

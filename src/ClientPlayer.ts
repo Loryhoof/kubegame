@@ -4,6 +4,7 @@ import { AssetsManager } from "./AssetsManager";
 import AudioManager from "./AudioManager";
 import InputManager from "./InputManager";
 import FloatingText from "./FloatingText";
+import CameraManager from "./CameraManager";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -38,7 +39,7 @@ class ClientPlayer {
   public wantsToAttack: boolean = false;
   public isAttacking: boolean = false;
   private currentAnimation: string | null = null;
-  private isLocalPlayer: boolean = false;
+  public isLocalPlayer: boolean = false;
 
   public isSitting: boolean = false;
 
@@ -175,6 +176,56 @@ class ClientPlayer {
 
   remove() {
     this.scene.remove(this.dummy);
+  }
+
+  predictMovement(delta: number, keys?: any) {
+    if (!this.isLocalPlayer) return;
+
+    // 1. Use provided keys (reconciliation) or live keys (InputManager)
+    const input = keys || InputManager.instance.getState();
+
+    const inputDir = new THREE.Vector3();
+    const speedFactor = input.shift ? 6 : 3;
+
+    if (input.w) inputDir.z = -1;
+    if (input.s) inputDir.z = 1;
+    if (input.a) inputDir.x = -1;
+    if (input.d) inputDir.x = 1;
+
+    // If no input → stop velocity, don’t rotate
+    if (inputDir.lengthSq() === 0) {
+      this.velocity.set(0, 0, 0);
+      return;
+    }
+
+    // Normalize input direction
+    inputDir.normalize();
+
+    // 2. Use only camera yaw for movement direction
+    const camera = CameraManager.instance.getCamera();
+    const euler = new THREE.Euler(0, 0, 0, "YXZ");
+    euler.setFromQuaternion(camera.quaternion);
+
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      euler.y
+    );
+
+    // Apply yaw-only rotation to input direction
+    const displacement = inputDir.applyQuaternion(yawQuat);
+
+    // 3. Apply movement
+    displacement.multiplyScalar(delta * speedFactor);
+    this.velocity.copy(displacement);
+    this.dummy.position.add(displacement);
+
+    // 4. Face movement direction
+    const yaw = Math.atan2(-displacement.x, -displacement.z);
+    const targetQuat = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      yaw
+    );
+    this.dummy.quaternion.slerp(targetQuat, 0.15);
   }
 
   createFloatingText(): THREE.Sprite {
@@ -448,9 +499,11 @@ class ClientPlayer {
   }
 
   update(delta: number) {
+    this.predictMovement(delta);
     this.updateAnimationState(delta);
     this.updateAudio();
     this.mixer.update(delta);
+
     // if (!this.isLocalPlayer && this.infoSprite) {
     //   // let color = "#ffffff";
     //   // if (this.health <= 25) {
