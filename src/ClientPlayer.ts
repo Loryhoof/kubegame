@@ -206,6 +206,43 @@ class ClientPlayer {
     return sprite;
   }
 
+  setInterpolatedState(
+    position: THREE.Vector3,
+    quaternion: THREE.Quaternion,
+    velocity: THREE.Vector3
+  ) {
+    //console.log(position, quaternion);
+
+    //return;
+    this.velocity.copy(velocity);
+    this.dummy.position.copy(position);
+    this.dummy.quaternion.slerp(quaternion, 0.15);
+
+    // Initial material setup
+    if (!this.hasInit) {
+      this.model.traverse((item: any) => {
+        if (item instanceof THREE.SkinnedMesh) {
+          if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
+            item.material = new THREE.MeshStandardMaterial({
+              color: 0xffffff * Math.random(),
+            });
+          }
+          if (["Leg_R", "Leg_L"].includes(item.name)) {
+            item.material = new THREE.MeshStandardMaterial({
+              color: pantColor,
+            });
+          }
+          if (item.name === "Head") {
+            item.material = new THREE.MeshStandardMaterial({
+              color: skinColor,
+            });
+          }
+        }
+      });
+      this.hasInit = true;
+    }
+  }
+
   setState(state: StateData) {
     const {
       position,
@@ -237,7 +274,7 @@ class ClientPlayer {
         quaternion.z,
         quaternion.w
       ),
-      0.15
+      0.5
     );
 
     // Initial material setup
@@ -404,7 +441,6 @@ class ClientPlayer {
     this.updateAnimationState(delta);
     this.updateAudio();
     this.mixer.update(delta);
-
     // if (!this.isLocalPlayer && this.infoSprite) {
     //   // let color = "#ffffff";
     //   // if (this.health <= 25) {

@@ -657,21 +657,21 @@ export default class World {
   updateState(data: WorldStateData) {
     const { vehicles, npcs } = data;
 
-    vehicles?.forEach((networkVehicle) => {
-      const clientVehicle = this.getObjById(
-        networkVehicle.id,
-        this.vehicles
-      ) as ClientVehicle;
+    // vehicles?.forEach((networkVehicle) => {
+    //   const clientVehicle = this.getObjById(
+    //     networkVehicle.id,
+    //     this.vehicles
+    //   ) as ClientVehicle;
 
-      if (!clientVehicle) return;
+    //   if (!clientVehicle) return;
 
-      clientVehicle.updateState(
-        networkVehicle.position,
-        networkVehicle.quaternion,
-        networkVehicle.wheels,
-        networkVehicle.hornPlaying
-      );
-    });
+    //   clientVehicle.updateState(
+    //     networkVehicle.position,
+    //     networkVehicle.quaternion,
+    //     networkVehicle.wheels,
+    //     networkVehicle.hornPlaying
+    //   );
+    // });
 
     npcs?.forEach((networkNPC: any) => {
       const clientNPC = this.getObjById(

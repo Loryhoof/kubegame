@@ -9,6 +9,19 @@ import AudioManager from "./AudioManager";
 import Stats from "stats.js";
 import NetworkManager from "./NetworkManager";
 import ChatManager from "./ChatManager";
+import ClientVehicle from "./ClientVehicle";
+
+let world: World | null = null;
+
+type Snapshot = {
+  time: number; // server time of snapshot (ms)
+  players: Record<string, NetworkPlayer>;
+  vehicles: any;
+};
+
+const snapshotBuffer: Snapshot[] = [];
+//const INTERP_DELAY = 100; // ms, typical value 100-200ms
+let serverTimeOffsetMs: number = 0;
 
 const stats = new Stats();
 // document.body.appendChild(stats.dom);
@@ -21,7 +34,7 @@ let worldIsReady = false;
 type NetworkPlayer = {
   id: string;
   position: { x: number; y: number; z: number };
-  quaternion: { x: number; y: number; z: number };
+  quaternion: { x: number; y: number; z: number; w: number };
   velocity: { x: number; y: number; z: number };
   color: string;
   health: number;
@@ -67,11 +80,28 @@ let joystickY = 0;
 window.addEventListener("camera-controls", (e: any) => {
   const { x, y } = e.detail;
   joystickX = x;
-  joystickY = y;
+  joystickY = -y;
 });
 
 // Networking
 const socket = NetworkManager.instance.getSocket();
+
+function catmullRom(
+  p0: THREE.Vector3,
+  p1: THREE.Vector3,
+  p2: THREE.Vector3,
+  p3: THREE.Vector3,
+  t: number
+) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return p0
+    .clone()
+    .multiplyScalar(-0.5 * t3 + t2 - 0.5 * t)
+    .add(p1.clone().multiplyScalar(1.5 * t3 - 2.5 * t2 + 1.0))
+    .add(p2.clone().multiplyScalar(-1.5 * t3 + 2.0 * t2 + 0.5 * t))
+    .add(p3.clone().multiplyScalar(0.5 * t3 - 0.5 * t2));
+}
 
 // ✅ Do not bind listeners immediately — only after init()
 function registerSocketEvents(world: World) {
@@ -79,6 +109,26 @@ function registerSocketEvents(world: World) {
     const start = Date.now();
     socket.emit("pingCheck", start);
   }, 3000);
+
+  function syncTime() {
+    const clientSent = Date.now();
+    socket.emit("syncTime", clientSent);
+  }
+
+  socket.on("syncTimeResponse", ({ clientSent, serverNow }) => {
+    const clientRecv = Date.now();
+    const rtt = clientRecv - clientSent;
+    const oneWay = rtt / 2;
+
+    // estimated offset = (serverTime when server responded) - (client time when we got it)
+    serverTimeOffsetMs = serverNow + oneWay - clientRecv;
+    console.log("serverTimeOffsetMs", serverTimeOffsetMs);
+  });
+
+  // call it a few times for better estimate
+  for (let i = 0; i < 5; i++) {
+    setTimeout(syncTime, i * 200);
+  }
 
   socket.on("pongCheck", (startTime: number) => {
     ping = Date.now() - startTime;
@@ -146,26 +196,320 @@ function registerSocketEvents(world: World) {
     networkPlayers.delete(playerId);
   });
 
+  // socket.on(
+  //   "updateData",
+  //   (data: { world: any; players: Record<string, NetworkPlayer> }) => {
+  //     if (!worldIsReady) return;
+
+  //     for (const [key, value] of Object.entries(data.players)) {
+  //       let netPlayer = networkPlayers.get(key);
+
+  //       if (!netPlayer) {
+  //         const newPlayer = new ClientPlayer(key, "0xffffff", scene);
+  //         networkPlayers.set(key, newPlayer);
+  //         netPlayer = newPlayer;
+  //       }
+
+  //       netPlayer.setState(value as any);
+  //     }
+
+  //     world.updateState(data.world);
+  //   }
+  // );
+
   socket.on(
     "updateData",
-    (data: { world: any; players: Record<string, NetworkPlayer> }) => {
+    (data: {
+      time: number;
+      world: any;
+      players: Record<string, NetworkPlayer>;
+    }) => {
       if (!worldIsReady) return;
 
-      for (const [key, value] of Object.entries(data.players)) {
-        let netPlayer = networkPlayers.get(key);
+      snapshotBuffer.push({
+        time: data.time,
+        players: data.players,
+        vehicles: data.world.vehicles,
+      });
 
-        if (!netPlayer) {
-          const newPlayer = new ClientPlayer(key, "0xffffff", scene);
-          networkPlayers.set(key, newPlayer);
-          netPlayer = newPlayer;
-        }
-
-        netPlayer.setState(value as any);
-      }
+      // keep buffer small
+      if (snapshotBuffer.length > 50) snapshotBuffer.shift();
 
       world.updateState(data.world);
     }
   );
+}
+
+// Keep a small helper map for extrapolation state
+const extrapolationState = new Map<
+  string,
+  { basePos: THREE.Vector3; lastTime: number }
+>();
+
+const serverTickMs = 1000 / 30;
+
+// vehicles?.forEach((networkVehicle) => {
+//   const clientVehicle = this.getObjById(
+//     networkVehicle.id,
+//     this.vehicles
+//   ) as ClientVehicle;
+
+//   if (!clientVehicle) return;
+
+//   clientVehicle.updateState(
+//     networkVehicle.position,
+//     networkVehicle.quaternion,
+//     networkVehicle.wheels,
+//     networkVehicle.hornPlaying
+//   );
+// });
+
+function interpolateVehicles() {
+  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
+
+  if (snapshotBuffer.length < 2) return;
+
+  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
+
+  let older: Snapshot | null = null;
+  let newer: Snapshot | null = null;
+
+  for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
+    if (snapshotBuffer[i].time <= renderServerTime) {
+      older = snapshotBuffer[i];
+      newer = snapshotBuffer[i + 1] || null;
+      break;
+    }
+  }
+
+  if (!older) return;
+
+  // --- Case 1: Normal interpolation ---
+  if (newer) {
+    // Clear extrapolation state (we’re back on track)
+    extrapolationState.clear();
+
+    const dt = newer.time - older.time;
+    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
+    const t = Math.max(0, Math.min(1, alpha));
+
+    for (let i = 0; i < older.vehicles.length; i++) {
+      const pOld = older.vehicles[i] as ClientVehicle;
+      const pNew = newer.vehicles[i] || pOld;
+
+      // let netPlayer = networkPlayers.get(id);
+      // if (!netPlayer) {
+      //   netPlayer = new ClientPlayer(id, pOld.color, scene);
+      //   networkPlayers.set(id, netPlayer);
+      // }
+
+      const clientVehicle = world?.getObjById(pOld.id, world.vehicles);
+      console.log(clientVehicle);
+      if (!clientVehicle) return;
+
+      const posOld = new THREE.Vector3(
+        pOld.position.x,
+        pOld.position.y,
+        pOld.position.z
+      );
+      const posNew = new THREE.Vector3(
+        pNew.position.x,
+        pNew.position.y,
+        pNew.position.z
+      );
+      const targetPos = posOld.lerp(posNew, t);
+
+      const quatOld = new THREE.Quaternion(
+        pOld.quaternion.x,
+        pOld.quaternion.y,
+        pOld.quaternion.z,
+        pOld.quaternion.w
+      );
+      const quatNew = new THREE.Quaternion(
+        pNew.quaternion.x,
+        pNew.quaternion.y,
+        pNew.quaternion.z,
+        pNew.quaternion.w
+      );
+      const targetQuat = quatOld.slerp(quatNew, t);
+
+      const oldWheels = pOld.wheels;
+      const newWheels = (pNew as ClientVehicle).wheels;
+
+      const targetWheels: any[] = [];
+
+      for (let wheelIndex = 0; wheelIndex < oldWheels.length; wheelIndex++) {
+        const oldWheel = oldWheels[wheelIndex];
+        const newWheel = newWheels[wheelIndex];
+
+        const oldWheelPos = new THREE.Vector3(
+          oldWheel.worldPosition.x,
+          oldWheel.worldPosition.y,
+          oldWheel.worldPosition.z
+        );
+        const newWheelPos = new THREE.Vector3(
+          newWheel.worldPosition.x,
+          newWheel.worldPosition.y,
+          newWheel.worldPosition.z
+        );
+
+        const targetWheelPos = oldWheelPos.lerp(newWheelPos, t);
+
+        const oldWheelQuat = new THREE.Quaternion(
+          oldWheel.quaternion.x,
+          oldWheel.quaternion.y,
+          oldWheel.quaternion.z,
+          oldWheel.quaternion.w
+        );
+        const newWheelQuat = new THREE.Quaternion(
+          newWheel.quaternion.x,
+          newWheel.quaternion.y,
+          newWheel.quaternion.z,
+          newWheel.quaternion.w
+        );
+
+        const targetWheelQuat = oldWheelQuat.slerp(newWheelQuat, t);
+
+        targetWheels[wheelIndex] = {
+          worldPosition: targetWheelPos,
+          quaternion: targetWheelQuat,
+        };
+      }
+
+      console.log(targetWheels, "tgwhe");
+
+      clientVehicle.updateState(targetPos, targetQuat, targetWheels, false);
+    }
+  }
+}
+
+function interpolatePlayers() {
+  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
+
+  if (snapshotBuffer.length < 2) return;
+
+  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
+
+  let older: Snapshot | null = null;
+  let newer: Snapshot | null = null;
+
+  for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
+    if (snapshotBuffer[i].time <= renderServerTime) {
+      older = snapshotBuffer[i];
+      newer = snapshotBuffer[i + 1] || null;
+      break;
+    }
+  }
+
+  if (!older) return;
+
+  // --- Case 1: Normal interpolation ---
+  if (newer) {
+    // Clear extrapolation state (we’re back on track)
+    extrapolationState.clear();
+
+    const dt = newer.time - older.time;
+    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
+    const t = Math.max(0, Math.min(1, alpha));
+
+    for (const id in older.players) {
+      const pOld = older.players[id];
+      const pNew = newer.players[id] || pOld;
+
+      let netPlayer = networkPlayers.get(id);
+      if (!netPlayer) {
+        netPlayer = new ClientPlayer(id, pOld.color, scene);
+        networkPlayers.set(id, netPlayer);
+      }
+
+      const posOld = new THREE.Vector3(
+        pOld.position.x,
+        pOld.position.y,
+        pOld.position.z
+      );
+      const posNew = new THREE.Vector3(
+        pNew.position.x,
+        pNew.position.y,
+        pNew.position.z
+      );
+      const targetPos = posOld.lerp(posNew, t);
+
+      const quatOld = new THREE.Quaternion(
+        pOld.quaternion.x,
+        pOld.quaternion.y,
+        pOld.quaternion.z,
+        pOld.quaternion.w
+      );
+      const quatNew = new THREE.Quaternion(
+        pNew.quaternion.x,
+        pNew.quaternion.y,
+        pNew.quaternion.z,
+        pNew.quaternion.w
+      );
+      const targetQuat = quatOld.slerp(quatNew, t);
+
+      const velOld = new THREE.Vector3(
+        pOld.velocity.x,
+        pOld.velocity.y,
+        pOld.velocity.z
+      );
+      const velNew = new THREE.Vector3(
+        pNew.velocity.x,
+        pNew.velocity.y,
+        pNew.velocity.z
+      );
+      const targetVel = velOld.lerp(velNew, t);
+
+      netPlayer.setInterpolatedState(targetPos, targetQuat, targetVel);
+    }
+  }
+
+  // --- Case 2: Extrapolation ---
+  else {
+    const delta = clock.getDelta(); // per-frame delta
+
+    for (const id in older.players) {
+      const p = older.players[id];
+
+      let netPlayer = networkPlayers.get(id);
+      if (!netPlayer) {
+        netPlayer = new ClientPlayer(id, p.color, scene);
+        networkPlayers.set(id, netPlayer);
+      }
+
+      // Get or create extrapolation state
+      let state = extrapolationState.get(id);
+      if (!state) {
+        state = {
+          basePos: new THREE.Vector3(p.position.x, p.position.y, p.position.z),
+          lastTime: Date.now(),
+        };
+        extrapolationState.set(id, state);
+      }
+
+      // Advance forward smoothly
+      const vel = new THREE.Vector3(p.velocity.x, p.velocity.y, p.velocity.z);
+      const advance = vel.clone().multiplyScalar(delta);
+
+      state.basePos.add(advance);
+
+      // Cap drift at ~250ms
+      if (Date.now() - older.time > 250) return;
+
+      // Blend visible player toward prediction
+      netPlayer.getPosition().lerp(state.basePos, 0.8);
+
+      const quat = new THREE.Quaternion(
+        p.quaternion.x,
+        p.quaternion.y,
+        p.quaternion.z,
+        p.quaternion.w
+      );
+      netPlayer.getQuaternion().slerp(quat, 0.2);
+
+      netPlayer.velocity.copy(vel);
+    }
+  }
 }
 
 // Camera follow
@@ -207,7 +551,7 @@ function updateCameraFollow() {
     playerPos.z + offsetZ
   );
 
-  camera.position.lerp(desiredPosition, 1);
+  camera.position.copy(desiredPosition);
   camera.lookAt(playerPos.x, playerPos.y + height, playerPos.z);
 }
 
@@ -272,6 +616,9 @@ function animate(world: World) {
   world.update(delta);
   updateCameraFollow();
 
+  interpolatePlayers();
+  interpolateVehicles();
+
   networkPlayers.forEach((player: ClientPlayer) => {
     player.update(delta);
   });
@@ -294,7 +641,7 @@ async function init() {
   const assetsManager = AssetsManager.instance;
   await assetsManager.loadAll();
 
-  const world = new World(scene);
+  world = new World(scene);
   world.init();
 
   if (!socket.id) {
