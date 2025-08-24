@@ -546,7 +546,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
 }
 
 // ---------------- Animate ----------------
-const FIXED_DT = 1 / 30;
+const FIXED_DT = 1 / 60;
 let accumulator = 0;
 
 function animate(world: World) {
