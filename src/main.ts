@@ -206,13 +206,13 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.position.z
   );
 
-  const error = serverPos.clone().sub(player.getPosition());
-  if (error.length() > 0.05) {
-    player.dummy.position.add(error.multiplyScalar(0.5)); // smooth catch-up
-  }
+  // const error = serverPos.clone().sub(player.getPosition());
+  // if (error.length() > 0.05) {
+  //   player.dummy.position.add(error.multiplyScalar(0.5)); // smooth catch-up
+  // }
 
   // instead of teleport
-  // player.setPosition(serverPos); // blend toward server pos
+  player.setPosition(serverPos); // blend toward server pos
 
   // rotation correction only if far off
   const serverQuat = new THREE.Quaternion(
@@ -221,9 +221,11 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.quaternion.z,
     serverState.quaternion.w
   );
-  if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
-    player.slerpQuaternion(serverQuat, 0.25);
-  }
+  // if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
+  //   player.setQuaternion(serverQuat);
+  // }
+
+  player.setQuaternion(serverQuat);
 
   player.velocity.set(
     serverState.velocity.x,
