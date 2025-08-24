@@ -212,26 +212,28 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   // }
 
   // instead of teleport
-  player.setPosition(serverPos); // blend toward server pos
+  // player.setPosition(serverPos); // blend toward server pos
 
-  // rotation correction only if far off
-  const serverQuat = new THREE.Quaternion(
-    serverState.quaternion.x,
-    serverState.quaternion.y,
-    serverState.quaternion.z,
-    serverState.quaternion.w
-  );
-  if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
-    player.slerpQuaternion(serverQuat, 0.15);
-  }
+  // // rotation correction only if far off
+  // const serverQuat = new THREE.Quaternion(
+  //   serverState.quaternion.x,
+  //   serverState.quaternion.y,
+  //   serverState.quaternion.z,
+  //   serverState.quaternion.w
+  // );
+  // if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
+  //   player.slerpQuaternion(serverQuat, 0.15);
+  // }
 
-  player.velocity.set(
-    serverState.velocity.x,
-    serverState.velocity.y,
-    serverState.velocity.z
-  );
-  player.health = serverState.health;
-  player.coins = serverState.coins;
+  // player.velocity.set(
+  //   serverState.velocity.x,
+  //   serverState.velocity.y,
+  //   serverState.velocity.z
+  // );
+  // player.health = serverState.health;
+  // player.coins = serverState.coins;
+
+  player.setState(serverState as any);
 
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
