@@ -185,7 +185,7 @@ class ClientPlayer {
     const input = keys || InputManager.instance.getState();
 
     const inputDir = new THREE.Vector3();
-    const speedFactor = input.shift ? 6 : 3;
+    const speedFactor = input.shift ? 4 : 2;
 
     if (input.w) inputDir.z = -1;
     if (input.s) inputDir.z = 1;
