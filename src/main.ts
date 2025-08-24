@@ -207,7 +207,7 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   );
 
   // instead of teleport
-  player.lerpPosition(serverPos, 0.3); // blend toward server pos
+  player.lerpPosition(serverPos, 1); // blend toward server pos
 
   // rotation correction only if far off
   const serverQuat = new THREE.Quaternion(
