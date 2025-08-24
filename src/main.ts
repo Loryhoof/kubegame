@@ -38,6 +38,10 @@ type NetworkPlayer = {
   velocity: { x: number; y: number; z: number };
   color: string;
   health: number;
+  coins: number;
+  keys: any;
+  isSitting: boolean;
+  controlledObject: any;
 };
 
 let ping = 0;
@@ -304,7 +308,6 @@ function interpolateVehicles() {
       // }
 
       const clientVehicle = world?.getObjById(pOld.id, world.vehicles);
-      console.log(clientVehicle);
       if (!clientVehicle) return;
 
       const posOld = new THREE.Vector3(
@@ -376,9 +379,12 @@ function interpolateVehicles() {
         };
       }
 
-      console.log(targetWheels, "tgwhe");
-
-      clientVehicle.updateState(targetPos, targetQuat, targetWheels, false);
+      clientVehicle.updateState(
+        targetPos,
+        targetQuat,
+        targetWheels,
+        (pNew as ClientVehicle).hornPlaying
+      );
     }
   }
 }
@@ -460,7 +466,17 @@ function interpolatePlayers() {
       );
       const targetVel = velOld.lerp(velNew, t);
 
-      netPlayer.setInterpolatedState(targetPos, targetQuat, targetVel);
+      netPlayer.setState({
+        position: targetPos,
+        quaternion: targetQuat,
+        color: pNew.color,
+        health: pNew.health,
+        coins: pNew.coins,
+        velocity: targetVel,
+        keys: pNew.keys,
+        isSitting: pNew.isSitting,
+        controlledObject: pNew.controlledObject,
+      });
     }
   }
 

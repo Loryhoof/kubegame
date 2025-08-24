@@ -206,42 +206,52 @@ class ClientPlayer {
     return sprite;
   }
 
-  setInterpolatedState(
-    position: THREE.Vector3,
-    quaternion: THREE.Quaternion,
-    velocity: THREE.Vector3
-  ) {
-    //console.log(position, quaternion);
+  // setInterpolatedState(
+  //   state: StateData
+  // ) {
 
-    //return;
-    this.velocity.copy(velocity);
-    this.dummy.position.copy(position);
-    this.dummy.quaternion.slerp(quaternion, 0.15);
+  //   const {
+  //     position,
+  //     quaternion,
+  //     color,
+  //     health,
+  //     coins,
+  //     velocity,
+  //     keys,
+  //     isSitting,
+  //     controlledObject,
+  //   } = state;
+  //   //console.log(position, quaternion);
 
-    // Initial material setup
-    if (!this.hasInit) {
-      this.model.traverse((item: any) => {
-        if (item instanceof THREE.SkinnedMesh) {
-          if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
-            item.material = new THREE.MeshStandardMaterial({
-              color: 0xffffff * Math.random(),
-            });
-          }
-          if (["Leg_R", "Leg_L"].includes(item.name)) {
-            item.material = new THREE.MeshStandardMaterial({
-              color: pantColor,
-            });
-          }
-          if (item.name === "Head") {
-            item.material = new THREE.MeshStandardMaterial({
-              color: skinColor,
-            });
-          }
-        }
-      });
-      this.hasInit = true;
-    }
-  }
+  //   //return;
+  //   this.velocity.copy(velocity);
+  //   this.dummy.position.copy(position);
+  //   this.dummy.quaternion.slerp(quaternion, 0.15);
+
+  //   // Initial material setup
+  //   if (!this.hasInit) {
+  //     this.model.traverse((item: any) => {
+  //       if (item instanceof THREE.SkinnedMesh) {
+  //         if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
+  //           item.material = new THREE.MeshStandardMaterial({
+  //             color: 0xffffff * Math.random(),
+  //           });
+  //         }
+  //         if (["Leg_R", "Leg_L"].includes(item.name)) {
+  //           item.material = new THREE.MeshStandardMaterial({
+  //             color: pantColor,
+  //           });
+  //         }
+  //         if (item.name === "Head") {
+  //           item.material = new THREE.MeshStandardMaterial({
+  //             color: skinColor,
+  //           });
+  //         }
+  //       }
+  //     });
+  //     this.hasInit = true;
+  //   }
+  // }
 
   setState(state: StateData) {
     const {
@@ -274,7 +284,7 @@ class ClientPlayer {
         quaternion.z,
         quaternion.w
       ),
-      0.5
+      0.25
     );
 
     // Initial material setup
