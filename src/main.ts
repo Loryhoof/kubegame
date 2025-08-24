@@ -221,11 +221,9 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.quaternion.z,
     serverState.quaternion.w
   );
-  // if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
-  //   player.setQuaternion(serverQuat);
-  // }
-
-  player.setQuaternion(serverQuat);
+  if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
+    player.slerpQuaternion(serverQuat, 0.15);
+  }
 
   player.velocity.set(
     serverState.velocity.x,
