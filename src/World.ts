@@ -24,7 +24,7 @@ type TerrainData = {
 
 export default class World {
   private scene: THREE.Scene;
-  private entities: any[] = [];
+  public entities: any[] = [];
   public interactables: any[] = [];
   public vehicles: ClientVehicle[] = [];
   public npcs: any[] = [];
@@ -104,6 +104,7 @@ export default class World {
     ground.receiveShadow = true;
 
     this.scene.add(ground);
+    this.entities.push({ id: 1, mesh: ground });
 
     //ramp
     // const rampAsset = AssetsManager.instance.models.get("ramp") as any;

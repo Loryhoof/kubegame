@@ -5,6 +5,7 @@ import AudioManager from "./AudioManager";
 import InputManager from "./InputManager";
 import FloatingText from "./FloatingText";
 import CameraManager from "./CameraManager";
+import World from "./World";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -47,12 +48,18 @@ class ClientPlayer {
 
   public controlledObject: { id: string } | null = null;
 
+  private raycaster: THREE.Raycaster = new THREE.Raycaster();
+
+  private world: World;
+
   constructor(
+    world: World,
     networkId: string,
     color: string,
     scene: THREE.Scene,
     isLocalPlayer: boolean = false
   ) {
+    this.world = world;
     this.networkId = networkId;
     this.color = color;
     this.scene = scene;
@@ -186,6 +193,40 @@ class ClientPlayer {
     this.scene.remove(this.dummy);
   }
 
+  rayDown(): THREE.Vector3 | null {
+    const DOWN = new THREE.Vector3(0, -1, 0);
+    this.raycaster.set(this.dummy.position, DOWN);
+
+    const intersects = this.raycaster.intersectObjects(
+      this.world.entities.map((item) => item.mesh)
+    );
+
+    if (intersects.length > 0) {
+      return intersects[0].point;
+    }
+    return null;
+  }
+
+  collidingForward(): boolean {
+    const FORWARD = new THREE.Vector3(0, 0, -1);
+    this.raycaster.set(
+      this.dummy.position,
+      FORWARD.applyQuaternion(this.dummy.quaternion)
+    );
+
+    const intersects = this.raycaster.intersectObjects(
+      this.world.entities.map((item) => item.mesh)
+    );
+
+    if (intersects.length > 0) {
+      if (intersects[0].distance <= 0.5) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   predictMovement(delta: number, keys?: any, quat?: THREE.Quaternion) {
     if (!this.isLocalPlayer) return;
 
@@ -209,8 +250,6 @@ class ClientPlayer {
     inputDir.normalize();
 
     // Use camera yaw at input time:
-    // - live prediction uses CameraManager
-    // - replay uses saved quat passed in
     const camQuat = quat || CameraManager.instance.getCamera().quaternion;
 
     const euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -222,20 +261,42 @@ class ClientPlayer {
     );
 
     // rotate input dir into world space
-    const displacement = inputDir.applyQuaternion(yawQuat);
+    let displacement = inputDir.applyQuaternion(yawQuat);
 
-    // apply movement
+    // scale by speed & delta
     displacement.multiplyScalar(delta * speedFactor);
+
+    // ---- COLLISION CHECK ----
+    this.raycaster.set(this.dummy.position, displacement.clone().normalize());
+
+    const intersects = this.raycaster.intersectObjects(
+      this.world.entities.map((item) => item.mesh),
+      true
+    );
+
+    if (intersects.length > 0 && intersects[0].distance <= 1) {
+      displacement.set(0, 0, 0);
+    }
+
+    // ---- APPLY MOVEMENT ----
     this.velocity.copy(displacement);
     this.dummy.position.add(displacement);
 
-    // rotate player to face movement direction
-    const yaw = Math.atan2(-displacement.x, -displacement.z);
-    const targetQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      yaw
-    );
-    this.dummy.quaternion.slerp(targetQuat, 0.15);
+    // ---- GROUND CHECK ----
+    const groundPoint = this.rayDown();
+    if (groundPoint) {
+      this.dummy.position.y = groundPoint.y + 0.5;
+    }
+
+    // ---- ROTATE PLAYER TO FACE MOVEMENT ----
+    if (displacement.lengthSq() > 0.0001) {
+      const yaw = Math.atan2(-displacement.x, -displacement.z);
+      const targetQuat = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        yaw
+      );
+      this.dummy.quaternion.slerp(targetQuat, 0.15);
+    }
   }
 
   createFloatingText(): THREE.Sprite {
