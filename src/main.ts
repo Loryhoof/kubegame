@@ -508,13 +508,21 @@ function interpolateNPCs() {
       );
       const targetQuat = quatOld.slerp(quatNew, t);
 
+      const targetVel = new THREE.Vector3(
+        pOld.velocity.x,
+        pOld.velocity.y,
+        pOld.velocity.z
+      ).lerp(
+        new THREE.Vector3(pNew.velocity.x, pNew.velocity.y, pNew.velocity.z),
+        t
+      );
       clientNPC.setState({
         position: targetPos,
         quaternion: targetQuat,
         color: pNew.color,
         health: pNew.health,
         coins: pNew.coins,
-        velocity: pNew.velocity,
+        velocity: targetVel,
         keys: pNew.keys,
         isSitting: pNew.isSitting,
         controlledObject: pNew.controlledObject,
@@ -631,22 +639,18 @@ function animate(world: World) {
   const playerObject = networkPlayers.get(localId);
   if (!playerObject) return;
 
-  accumulator += delta;
-  while (accumulator >= FIXED_DT) {
-    const keys = InputManager.instance.getState();
-    const input = {
-      seq: inputSeq++,
-      dt: FIXED_DT,
-      keys,
-      quaternion: camera.quaternion.clone(),
-    };
-    pendingInputs.push(input);
-    socket.emit("playerInput", input);
-    playerObject.predictMovement(FIXED_DT, keys, input.quaternion);
-    accumulator -= FIXED_DT;
-  }
+  const keys = InputManager.instance.getState();
+  const input = {
+    seq: inputSeq++,
+    dt: FIXED_DT,
+    keys,
+    quaternion: camera.quaternion.clone(),
+  };
+  pendingInputs.push(input);
+  socket.emit("playerInput", input);
+  playerObject.predictMovement(FIXED_DT, keys, input.quaternion);
 
-  world.update(FIXED_DT); // fixed tick
+  world.update(delta); // fixed tick
   updateCameraFollow();
   interpolatePlayers();
   interpolateVehicles();
