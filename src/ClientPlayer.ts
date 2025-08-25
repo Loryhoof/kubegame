@@ -236,6 +236,7 @@ class ClientPlayer {
     const BASE_SPEED = 4;
     const WALK_SPEED = BASE_SPEED;
     const RUN_SPEED = BASE_SPEED * 2;
+    const MAX_WALL_DISTANCE = 0.3;
 
     // ---- BUILD INPUT VECTOR (sum instead of overwrite) ----
     inputDir.set(0, 0, 0);
@@ -285,7 +286,7 @@ class ClientPlayer {
 
       if (
         intersects.length > 0 &&
-        intersects[0].distance <= this.velocity.length() * delta
+        intersects[0].distance <= MAX_WALL_DISTANCE
       ) {
         this.velocity.set(0, 0, 0);
       }
