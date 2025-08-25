@@ -639,16 +639,20 @@ function animate(world: World) {
   const playerObject = networkPlayers.get(localId);
   if (!playerObject) return;
 
-  const keys = InputManager.instance.getState();
-  const input = {
-    seq: inputSeq++,
-    dt: FIXED_DT,
-    keys,
-    quaternion: camera.quaternion.clone(),
-  };
-  pendingInputs.push(input);
-  socket.emit("playerInput", input);
-  playerObject.predictMovement(FIXED_DT, keys, input.quaternion);
+  accumulator += delta;
+  while (accumulator >= FIXED_DT) {
+    const keys = InputManager.instance.getState();
+    const input = {
+      seq: inputSeq++,
+      dt: FIXED_DT,
+      keys,
+      quaternion: camera.quaternion.clone(),
+    };
+    pendingInputs.push(input);
+    socket.emit("playerInput", input);
+    playerObject.predictMovement(FIXED_DT, keys, input.quaternion);
+    accumulator -= FIXED_DT;
+  }
 
   world.update(delta); // fixed tick
   updateCameraFollow();
