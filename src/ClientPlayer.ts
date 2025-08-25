@@ -6,6 +6,7 @@ import InputManager from "./InputManager";
 import FloatingText from "./FloatingText";
 import CameraManager from "./CameraManager";
 import World from "./World";
+import { PLAYER_MASS } from "./constants";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -233,12 +234,15 @@ class ClientPlayer {
     const input = keys || InputManager.instance.getState();
     const inputDir = new THREE.Vector3();
 
+    const GRAVITY = -30; // m/s²
+    const JUMP_IMPULSE = 1.5; // backend impulse
+    const JUMP_FORCE = JUMP_IMPULSE / PLAYER_MASS; // Δv = impulse / mass
     const BASE_SPEED = 4;
     const WALK_SPEED = BASE_SPEED;
     const RUN_SPEED = BASE_SPEED * 2;
     const MAX_WALL_DISTANCE = 0.3;
 
-    // ---- BUILD INPUT VECTOR (sum instead of overwrite) ----
+    // ---- INPUT VECTOR (XZ only) ----
     inputDir.set(0, 0, 0);
     if (input.w) inputDir.z -= 1;
     if (input.s) inputDir.z += 1;
@@ -247,7 +251,7 @@ class ClientPlayer {
 
     const hasInput = inputDir.lengthSq() > 0;
 
-    // normalize input in local camera space
+    // normalize input in camera yaw space
     let worldDir = new THREE.Vector3();
     if (hasInput) {
       inputDir.normalize();
@@ -264,16 +268,45 @@ class ClientPlayer {
       worldDir = inputDir.applyQuaternion(yawQuat);
     }
 
-    // ---- VELOCITY SMOOTHING ----
+    // ---- HORIZONTAL VELOCITY ----
     const speed = input.shift ? RUN_SPEED : WALK_SPEED;
     const targetVel = hasInput
       ? worldDir.multiplyScalar(speed)
       : new THREE.Vector3(0, 0, 0);
 
-    const ACCEL = 25; // higher = snappier, lower = floatier
-    this.velocity.lerp(targetVel, Math.min(1, ACCEL * delta));
+    const ACCEL = 25;
+    this.velocity.x = THREE.MathUtils.lerp(
+      this.velocity.x,
+      targetVel.x,
+      Math.min(1, ACCEL * delta)
+    );
+    this.velocity.z = THREE.MathUtils.lerp(
+      this.velocity.z,
+      targetVel.z,
+      Math.min(1, ACCEL * delta)
+    );
 
-    // ---- COLLISION CHECK ----
+    // ---- GROUND CHECK ----
+    const groundPoint = this.rayDown();
+    const isGrounded =
+      groundPoint &&
+      Math.abs(this.dummy.position.y - (groundPoint.y + 0.5)) < 0.05;
+
+    // ---- GRAVITY ----
+    if (!isGrounded) {
+      this.velocity.y += GRAVITY * delta;
+    } else {
+      // clamp to ground
+      this.velocity.y = 0;
+      this.dummy.position.y = groundPoint.y + 0.5;
+    }
+
+    // ---- JUMP ----
+    if (input[" "] && isGrounded) {
+      this.velocity.y = JUMP_FORCE;
+    }
+
+    // ---- WALL COLLISION ----
     if (this.velocity.lengthSq() > 0.0001) {
       this.raycaster.set(
         this.dummy.position,
@@ -288,26 +321,24 @@ class ClientPlayer {
         intersects.length > 0 &&
         intersects[0].distance <= MAX_WALL_DISTANCE
       ) {
-        this.velocity.set(0, 0, 0);
+        this.velocity.x = 0;
+        this.velocity.z = 0;
       }
     }
 
     // ---- APPLY MOVEMENT ----
     this.dummy.position.addScaledVector(this.velocity, delta);
 
-    // ---- GROUND CHECK ----
-    const groundPoint = this.rayDown();
-    if (groundPoint) {
-      const dist = groundPoint.distanceTo(this.dummy.position);
-      if (dist <= 0.5) {
-        this.dummy.position.y = groundPoint.y + 0.5;
-      }
-    }
-
     // ---- ROTATE PLAYER ----
-    if (this.velocity.lengthSq() > 0.0001) {
+    const horizontalVelocity = new THREE.Vector3(
+      this.velocity.x,
+      0,
+      this.velocity.z
+    );
+
+    if (horizontalVelocity.lengthSq() > 0.0001) {
       if (input.mouseRight) {
-        // Face camera direction (strafe/aim mode)
+        // Face camera direction (strafe/aim)
         const camQuat = quat || CameraManager.instance.getCamera().quaternion;
         const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
 
@@ -318,7 +349,7 @@ class ClientPlayer {
 
         this.dummy.quaternion.slerp(yawQuat, 0.25);
       } else {
-        // Face smoothed velocity direction
+        // Face velocity direction
         const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
         const targetQuat = new THREE.Quaternion().setFromAxisAngle(
           new THREE.Vector3(0, 1, 0),
@@ -510,7 +541,12 @@ class ClientPlayer {
     const isStrafing = keys.mouseRight;
     const speedFactor = keys.shift ? 1.5 : 1;
 
-    const moving = this.velocity.length() > 0.01;
+    const horizontalVelocity = new THREE.Vector3(
+      this.velocity.x,
+      0,
+      this.velocity.z
+    );
+    const moving = horizontalVelocity.length() > 0.01;
     const isRunning = keys.shift && moving;
 
     const idle = this.animations.get("Idle");
