@@ -287,7 +287,7 @@ class ClientPlayer {
     if (groundPoint) {
       const dist = groundPoint.distanceTo(this.dummy.position);
 
-      if (dist <= 0.6) {
+      if (dist <= 0.5) {
         this.dummy.position.y = groundPoint.y + 0.5;
       }
     }
