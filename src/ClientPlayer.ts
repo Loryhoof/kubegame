@@ -285,7 +285,11 @@ class ClientPlayer {
     // ---- GROUND CHECK ----
     const groundPoint = this.rayDown();
     if (groundPoint) {
-      this.dummy.position.y = groundPoint.y + 0.5;
+      const dist = groundPoint.distanceTo(this.dummy.position);
+
+      if (dist <= 0.6) {
+        this.dummy.position.y = groundPoint.y + 0.5;
+      }
     }
 
     // ---- ROTATE PLAYER TO FACE MOVEMENT ----
