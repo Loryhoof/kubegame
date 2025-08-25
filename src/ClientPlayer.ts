@@ -234,15 +234,15 @@ class ClientPlayer {
     const input = keys || InputManager.instance.getState();
     const inputDir = new THREE.Vector3();
 
-    const GRAVITY = -30; // m/s²
-    const JUMP_IMPULSE = 1.5; // backend impulse
-    const JUMP_FORCE = JUMP_IMPULSE / PLAYER_MASS; // Δv = impulse / mass
+    const GRAVITY = -9.81;
+    const JUMP_IMPULSE = 0.8; // backend impulse
+    const JUMP_FORCE = JUMP_IMPULSE / PLAYER_MASS;
     const BASE_SPEED = 4;
     const WALK_SPEED = BASE_SPEED;
     const RUN_SPEED = BASE_SPEED * 2;
     const MAX_WALL_DISTANCE = 0.3;
 
-    // ---- INPUT VECTOR (XZ only) ----
+    // ---- INPUT VECTOR ----
     inputDir.set(0, 0, 0);
     if (input.w) inputDir.z -= 1;
     if (input.s) inputDir.z += 1;
@@ -251,7 +251,6 @@ class ClientPlayer {
 
     const hasInput = inputDir.lengthSq() > 0;
 
-    // normalize input in camera yaw space
     let worldDir = new THREE.Vector3();
     if (hasInput) {
       inputDir.normalize();
@@ -286,24 +285,28 @@ class ClientPlayer {
       Math.min(1, ACCEL * delta)
     );
 
+    // ---- GRAVITY ----
+    this.velocity.y += GRAVITY * delta;
+
     // ---- GROUND CHECK ----
     const groundPoint = this.rayDown();
-    const isGrounded =
-      groundPoint &&
-      Math.abs(this.dummy.position.y - (groundPoint.y + 0.5)) < 0.05;
+    let isGrounded = false;
 
-    // ---- GRAVITY ----
-    if (!isGrounded) {
-      this.velocity.y += GRAVITY * delta;
-    } else {
-      // clamp to ground
-      this.velocity.y = 0;
-      this.dummy.position.y = groundPoint.y + 0.5;
+    if (groundPoint) {
+      const dist = groundPoint.distanceTo(this.dummy.position);
+
+      // hard snap if close enough to the ground
+      if (dist <= 0.5 && this.velocity.y <= 0) {
+        this.dummy.position.y = groundPoint.y + 0.5;
+        this.velocity.y = 0;
+        isGrounded = true;
+      }
     }
 
     // ---- JUMP ----
     if (input[" "] && isGrounded) {
       this.velocity.y = JUMP_FORCE;
+      isGrounded = false;
     }
 
     // ---- WALL COLLISION ----
@@ -338,7 +341,6 @@ class ClientPlayer {
 
     if (horizontalVelocity.lengthSq() > 0.0001) {
       if (input.mouseRight) {
-        // Face camera direction (strafe/aim)
         const camQuat = quat || CameraManager.instance.getCamera().quaternion;
         const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
 
@@ -349,7 +351,6 @@ class ClientPlayer {
 
         this.dummy.quaternion.slerp(yawQuat, 0.25);
       } else {
-        // Face velocity direction
         const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
         const targetQuat = new THREE.Quaternion().setFromAxisAngle(
           new THREE.Vector3(0, 1, 0),
