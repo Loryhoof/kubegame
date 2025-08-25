@@ -22,7 +22,7 @@ export default function InfoBar() {
         </>
       )}
 
-      <p className="pt-2">Kubegame v0.1.14</p>
+      <p className="pt-2">Kubegame v0.1.15</p>
       <p className="pt-2 text-xs text-red-500 font-bold">
         Client prediction test. Vehicles are temporarily broken. And yes I test
         in prod.

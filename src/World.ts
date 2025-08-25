@@ -106,32 +106,6 @@ export default class World {
     this.scene.add(ground);
     this.entities.push({ id: 1, mesh: ground });
 
-    //ramp
-    // const rampAsset = AssetsManager.instance.models.get("ramp") as any;
-    // const ramp = rampAsset.scene.clone();
-
-    // ramp.position.set(20, -0.5, 0);
-
-    // this.registerObject(ramp);
-
-    // this.createInteractable(
-    //   new THREE.Mesh(
-    //     new THREE.BoxGeometry(1, 1, 1),
-    //     new THREE.MeshStandardMaterial({ color: 0xff0000 })
-    //   ),
-    //   new THREE.Vector3(10, 0, 10),
-    //   new THREE.Quaternion()
-    // );
-
-    // this.createInteractable(
-    //   new THREE.Mesh(
-    //     new THREE.BoxGeometry(1, 1, 1),
-    //     new THREE.MeshStandardMaterial({ color: 0xff0000 })
-    //   ),
-    //   new THREE.Vector3(10, 0, 20),
-    //   new THREE.Quaternion()
-    // );
-
     this.genWorld();
   }
 

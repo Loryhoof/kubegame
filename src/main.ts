@@ -203,39 +203,6 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  const serverPos = new THREE.Vector3(
-    serverState.position.x,
-    serverState.position.y,
-    serverState.position.z
-  );
-
-  // const error = serverPos.clone().sub(player.getPosition());
-  // if (error.length() > 0.05) {
-  //   player.dummy.position.add(error.multiplyScalar(0.5)); // smooth catch-up
-  // }
-
-  // instead of teleport
-  // player.setPosition(serverPos); // blend toward server pos
-
-  // // rotation correction only if far off
-  // const serverQuat = new THREE.Quaternion(
-  //   serverState.quaternion.x,
-  //   serverState.quaternion.y,
-  //   serverState.quaternion.z,
-  //   serverState.quaternion.w
-  // );
-  // if (player.getQuaternion().angleTo(serverQuat) > 0.2) {
-  //   player.slerpQuaternion(serverQuat, 0.15);
-  // }
-
-  // player.velocity.set(
-  //   serverState.velocity.x,
-  //   serverState.velocity.y,
-  //   serverState.velocity.z
-  // );
-  // player.health = serverState.health;
-  // player.coins = serverState.coins;
-
   player.setState(serverState as any);
 
   if (serverState.lastProcessedInputSeq !== undefined) {
@@ -245,7 +212,7 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   }
 
   for (const input of pendingInputs) {
-    player.predictMovement(input.dt, input.keys, input.quaternion);
+    player.predictMovement(input.dt, input.keys, input.camQuat);
   }
 }
 
@@ -646,11 +613,11 @@ function animate(world: World) {
       seq: inputSeq++,
       dt: FIXED_DT,
       keys,
-      quaternion: camera.quaternion.clone(),
+      camQuat: camera.quaternion.clone(),
     };
     pendingInputs.push(input);
     socket.emit("playerInput", input);
-    playerObject.predictMovement(FIXED_DT, keys, input.quaternion);
+    playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
   }
 

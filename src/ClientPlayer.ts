@@ -230,76 +230,101 @@ class ClientPlayer {
   predictMovement(delta: number, keys?: any, quat?: THREE.Quaternion) {
     if (!this.isLocalPlayer) return;
 
-    // Use provided keys (replay) or current keys (live)
     const input = keys || InputManager.instance.getState();
     const inputDir = new THREE.Vector3();
 
-    const speedFactor = input.shift ? 6 : 3;
+    const BASE_SPEED = 4;
+    const WALK_SPEED = BASE_SPEED;
+    const RUN_SPEED = BASE_SPEED * 2;
 
-    if (input.w) inputDir.z = -1;
-    if (input.s) inputDir.z = 1;
-    if (input.a) inputDir.x = -1;
-    if (input.d) inputDir.x = 1;
+    // ---- BUILD INPUT VECTOR (sum instead of overwrite) ----
+    inputDir.set(0, 0, 0);
+    if (input.w) inputDir.z -= 1;
+    if (input.s) inputDir.z += 1;
+    if (input.a) inputDir.x -= 1;
+    if (input.d) inputDir.x += 1;
 
-    // no input → stop velocity
-    if (inputDir.lengthSq() === 0) {
-      this.velocity.set(0, 0, 0);
-      return;
+    const hasInput = inputDir.lengthSq() > 0;
+
+    // normalize input in local camera space
+    let worldDir = new THREE.Vector3();
+    if (hasInput) {
+      inputDir.normalize();
+
+      const camQuat = quat || CameraManager.instance.getCamera().quaternion;
+      const euler = new THREE.Euler(0, 0, 0, "YXZ");
+      euler.setFromQuaternion(camQuat);
+
+      const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        euler.y
+      );
+
+      worldDir = inputDir.applyQuaternion(yawQuat);
     }
 
-    inputDir.normalize();
+    // ---- VELOCITY SMOOTHING ----
+    const speed = input.shift ? RUN_SPEED : WALK_SPEED;
+    const targetVel = hasInput
+      ? worldDir.multiplyScalar(speed)
+      : new THREE.Vector3(0, 0, 0);
 
-    // Use camera yaw at input time:
-    const camQuat = quat || CameraManager.instance.getCamera().quaternion;
-
-    const euler = new THREE.Euler(0, 0, 0, "YXZ");
-    euler.setFromQuaternion(camQuat);
-
-    const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      euler.y
-    );
-
-    // rotate input dir into world space
-    let displacement = inputDir.applyQuaternion(yawQuat);
-
-    // scale by speed & delta
-    displacement.multiplyScalar(delta * speedFactor);
+    const ACCEL = 25; // higher = snappier, lower = floatier
+    this.velocity.lerp(targetVel, Math.min(1, ACCEL * delta));
 
     // ---- COLLISION CHECK ----
-    this.raycaster.set(this.dummy.position, displacement.clone().normalize());
+    if (this.velocity.lengthSq() > 0.0001) {
+      this.raycaster.set(
+        this.dummy.position,
+        this.velocity.clone().normalize()
+      );
+      const intersects = this.raycaster.intersectObjects(
+        this.world.entities.map((item) => item.mesh),
+        true
+      );
 
-    const intersects = this.raycaster.intersectObjects(
-      this.world.entities.map((item) => item.mesh),
-      true
-    );
-
-    if (intersects.length > 0 && intersects[0].distance <= 0.3) {
-      displacement.set(0, 0, 0);
+      if (
+        intersects.length > 0 &&
+        intersects[0].distance <= this.velocity.length() * delta
+      ) {
+        this.velocity.set(0, 0, 0);
+      }
     }
 
     // ---- APPLY MOVEMENT ----
-    this.velocity.copy(displacement);
-    this.dummy.position.add(displacement);
+    this.dummy.position.addScaledVector(this.velocity, delta);
 
     // ---- GROUND CHECK ----
     const groundPoint = this.rayDown();
     if (groundPoint) {
       const dist = groundPoint.distanceTo(this.dummy.position);
-
       if (dist <= 0.5) {
         this.dummy.position.y = groundPoint.y + 0.5;
       }
     }
 
-    // ---- ROTATE PLAYER TO FACE MOVEMENT ----
-    if (displacement.lengthSq() > 0.0001) {
-      const yaw = Math.atan2(-displacement.x, -displacement.z);
-      const targetQuat = new THREE.Quaternion().setFromAxisAngle(
-        new THREE.Vector3(0, 1, 0),
-        yaw
-      );
-      this.dummy.quaternion.slerp(targetQuat, 0.15);
+    // ---- ROTATE PLAYER ----
+    if (this.velocity.lengthSq() > 0.0001) {
+      if (input.mouseRight) {
+        // Face camera direction (strafe/aim mode)
+        const camQuat = quat || CameraManager.instance.getCamera().quaternion;
+        const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+
+        const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          euler.y
+        );
+
+        this.dummy.quaternion.slerp(yawQuat, 0.25);
+      } else {
+        // Face smoothed velocity direction
+        const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+        const targetQuat = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          yaw
+        );
+        this.dummy.quaternion.slerp(targetQuat, 0.25);
+      }
     }
   }
 
