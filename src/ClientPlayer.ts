@@ -274,7 +274,7 @@ class ClientPlayer {
       true
     );
 
-    if (intersects.length > 0 && intersects[0].distance <= 1) {
+    if (intersects.length > 0 && intersects[0].distance <= 0.6) {
       displacement.set(0, 0, 0);
     }
 
