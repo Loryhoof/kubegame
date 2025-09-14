@@ -208,62 +208,70 @@ const ghostMesh = new THREE.Mesh(
   })
 );
 
-//scene.add(ghostMesh);
 function reconcileLocalPlayer(serverState: NetworkPlayer) {
   if (!localId) return;
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  player.setState(serverState as any);
-
   const rb = player["physicsObject"].rigidBody;
-  const clientPos = new THREE.Vector3().copy(rb.translation());
-  const clientVel = new THREE.Vector3().copy(rb.linvel());
 
+  // Server snapshot position & velocity
   const serverPos = new THREE.Vector3(
     serverState.position.x,
     serverState.position.y,
     serverState.position.z
   );
-
   const serverVel = new THREE.Vector3(
     serverState.velocity.x,
     serverState.velocity.y,
     serverState.velocity.z
   );
 
-  ghostMesh.position.copy(serverPos);
+  // Start correction from the snapshot
+  let correctedPos = serverPos.clone();
+  let correctedVel = serverVel.clone();
 
-  // ---- Position Error Check ----
-  const error = clientPos.distanceTo(serverPos);
-  const POS_THRESHOLD = 0.5; // meters
-
-  // if (error > POS_THRESHOLD) {
-  //   console.log("HARD SNAP");
-  //   // Hard snap if too far off
-  //   rb.setTranslation(serverPos, true);
-  //   rb.setLinvel(serverVel, true);
-  // } else {
-  //   // // Soft correction if slightly off
-  //   const alpha = 0.99; // how aggressively to correct small errors
-  //   const correctedPos = clientPos.lerp(serverPos, alpha);
-  //   const correctedVel = clientVel.lerp(serverVel, alpha);
-  //   rb.setTranslation(correctedPos, true);
-  //   rb.setLinvel(correctedVel, true);
-  // }
-
-  rb.setTranslation(serverPos, true);
-  rb.setLinvel(serverVel, true);
-
-  // ---- Reapply unacknowledged inputs ----
+  // Filter inputs we haven't processed yet
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
       (input) => input.seq > serverState.lastProcessedInputSeq!
     );
   }
 
+  // Simulate forward with all unacknowledged inputs
   for (const input of pendingInputs) {
-    player.predictMovement(input.dt, input.keys, input.camQuat);
+    const sim = player.simulateMovement(
+      correctedPos,
+      correctedVel,
+      input.dt,
+      input.keys,
+      input.camQuat
+    );
+    correctedPos = sim.pos;
+    correctedVel = sim.vel;
+  }
+
+  // Error check between current & corrected
+  const clientPos = new THREE.Vector3().copy(rb.translation());
+  const error = clientPos.distanceTo(correctedPos);
+  const HARD_SNAP = 1.0; // Teleport if > 1m off
+  const SOFT_SNAP = 0.05; // Soft correct if > 5cm off
+
+  if (error > HARD_SNAP) {
+    // Big error → teleport
+    rb.setTranslation(correctedPos, true);
+    rb.setLinvel(correctedVel, true);
+  } else if (error > SOFT_SNAP) {
+    // Small error → smooth correct
+    const alpha = 0.1; // 10% toward corrected each frame
+    const lerpPos = clientPos.lerp(correctedPos, alpha);
+    const lerpVel = new THREE.Vector3()
+      .copy(rb.linvel())
+      .lerp(correctedVel, alpha);
+    rb.setTranslation(lerpPos, true);
+    rb.setLinvel(lerpVel, true);
+  } else {
+    // Error negligible → leave as is
   }
 }
 
