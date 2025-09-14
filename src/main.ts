@@ -179,7 +179,7 @@ function registerSocketEvents(world: World) {
     // handle local separately
     const localState = data.players[localId];
     if (localState) {
-      reconcileLocalPlayer(localState);
+      // reconcileLocalPlayer(localState);
       delete data.players[localId];
     }
 
