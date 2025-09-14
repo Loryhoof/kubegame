@@ -244,17 +244,27 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     );
   }
 
-  // Simulate forward with all unacknowledged inputs
+  // // Simulate forward with all unacknowledged inputs
+  // for (const input of pendingInputs) {
+  //   const sim = player.simulateMovement(
+  //     correctedPos,
+  //     correctedVel,
+  //     input.dt,
+  //     input.keys,
+  //     input.camQuat
+  //   );
+  //   correctedPos = sim.pos;
+  //   correctedVel = sim.vel;
+  // }
+
   for (const input of pendingInputs) {
-    const sim = player.simulateMovement(
-      correctedPos,
-      correctedVel,
-      input.dt,
-      input.keys,
-      input.camQuat
-    );
-    correctedPos = sim.pos;
-    correctedVel = sim.vel;
+    let remaining = input.dt;
+    while (remaining > 0) {
+      const step = Math.min(1 / 60, remaining); // fixed timestep
+      player.predictMovement(step, input.keys, input.camQuat);
+      ClientPhysics.instance.update(); // step physics
+      remaining -= step;
+    }
   }
 
   // Error check between current & corrected
