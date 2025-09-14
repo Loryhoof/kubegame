@@ -654,7 +654,6 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
   );
 }
 
-// ---------------- Animate ----------------
 const FIXED_DT = 1 / 60;
 let accumulator = 0;
 
@@ -668,6 +667,7 @@ function animate(world: World) {
 
   accumulator += delta;
   while (accumulator >= FIXED_DT) {
+    // --- 1) Gather input & predict locally (always smooth) ---
     const keys = InputManager.instance.getState();
     const input = {
       seq: inputSeq++,
@@ -679,9 +679,37 @@ function animate(world: World) {
     socket.emit("playerInput", input);
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
+
+    // --- 2) Apply server corrections if needed ---
+    if (playerObject.serverPos) {
+      const rb = playerObject["physicsObject"].rigidBody;
+      const currentPos = new THREE.Vector3().copy(rb.translation());
+      const error = currentPos.distanceTo(playerObject.serverPos);
+
+      if (error > 5.0) {
+        // Big desync → snap instantly
+        rb.setTranslation(playerObject.serverPos, true);
+        rb.setLinvel(playerObject.serverVel!, true);
+      } else if (error > 0.1) {
+        // Small desync → smooth correction
+        const alpha = 0.1; // Correction strength
+        const corrected = currentPos.lerp(playerObject.serverPos, alpha);
+        const correctedVel = new THREE.Vector3()
+          .copy(rb.linvel())
+          .lerp(playerObject.serverVel!, alpha);
+
+        rb.setTranslation(corrected, true);
+        rb.setLinvel(correctedVel, true);
+      }
+
+      // Clear correction after applying
+      playerObject.serverPos = null;
+      playerObject.serverVel = null;
+    }
   }
 
-  world.update(delta); // fixed tick
+  // --- 3) Update world & visuals ---
+  world.update(delta);
   updateCameraFollow();
   interpolatePlayers();
   interpolateVehicles();
@@ -691,11 +719,13 @@ function animate(world: World) {
     player.update(delta);
   });
 
+  // --- 4) Update UI ---
   if (playerObject) {
     const wantsToInteract = checkPlayerInteractables(playerObject, world);
     updateUI(playerObject, wantsToInteract);
   }
 
+  // --- 5) Render ---
   renderer.render(scene, camera);
   stats.end();
   inputManager.update();
