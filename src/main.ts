@@ -666,8 +666,9 @@ function animate(world: World) {
   if (!playerObject) return;
 
   accumulator += delta;
+
   while (accumulator >= FIXED_DT) {
-    // --- 1) Gather input & predict locally (always smooth) ---
+    // --- 1) Collect input & predict instantly ---
     const keys = InputManager.instance.getState();
     const input = {
       seq: inputSeq++,
@@ -677,25 +678,34 @@ function animate(world: World) {
     };
     pendingInputs.push(input);
     socket.emit("playerInput", input);
+
+    // Predict immediately for responsiveness
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
+    // --- 2) Reconcile if we got a server state ---
     if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
       const error = currentPos.distanceTo(playerObject.serverPos);
 
       if (error > 5.0) {
-        // Big desync → snap instantly
+        // Huge desync → snap
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 1.0) {
-        // Medium desync → one-time nudge, not full smoothing
-        const direction = playerObject.serverPos.clone().sub(currentPos);
-        rb.setTranslation(currentPos.add(direction.multiplyScalar(0.5)), true);
+      } else if (error > 0.2) {
+        // Small desync → correct, then replay pending inputs
+        rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else {
-        // Small error → ignore it, trust local movement
+
+        // Replay all unacknowledged inputs since last processed seq
+        for (const pending of pendingInputs) {
+          playerObject.predictMovement(
+            pending.dt,
+            pending.keys,
+            pending.camQuat
+          );
+        }
       }
 
       playerObject.serverPos = null;
@@ -710,9 +720,7 @@ function animate(world: World) {
   interpolateVehicles();
   interpolateNPCs();
 
-  networkPlayers.forEach((player: ClientPlayer) => {
-    player.update(delta);
-  });
+  networkPlayers.forEach((p) => p.update(delta));
 
   // --- 4) Update UI ---
   if (playerObject) {
