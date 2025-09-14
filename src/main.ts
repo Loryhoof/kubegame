@@ -254,7 +254,9 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  // Store correction for main loop
+  player.setState(serverState as any);
+
+  // Server snapshot position & velocity
   player.serverPos = new THREE.Vector3(
     serverState.position.x,
     serverState.position.y,
@@ -266,7 +268,7 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.velocity.z
   );
 
-  // Keep only inputs not yet processed
+  // Filter inputs we haven't processed yet
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
       (input) => input.seq > serverState.lastProcessedInputSeq!
@@ -652,6 +654,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
   );
 }
 
+// ---------------- Animate ----------------
 const FIXED_DT = 1 / 60;
 let accumulator = 0;
 
@@ -674,52 +677,11 @@ function animate(world: World) {
     };
     pendingInputs.push(input);
     socket.emit("playerInput", input);
-
-    // -------------------------------
-    // Server reconciliation with replay
-    // -------------------------------
-    if (playerObject.serverPos) {
-      const rb = playerObject["physicsObject"].rigidBody;
-      const currentPos = new THREE.Vector3().copy(rb.translation());
-      const error = currentPos.distanceTo(playerObject.serverPos);
-
-      // Big error? Snap + clear inputs
-      if (error > 3.0) {
-        rb.setTranslation(playerObject.serverPos, true);
-        rb.setLinvel(playerObject.serverVel!, true);
-        pendingInputs = [];
-      } else {
-        // Reset to server state first
-        rb.setTranslation(playerObject.serverPos, true);
-        rb.setLinvel(playerObject.serverVel!, true);
-
-        // Replay all unprocessed inputs so we end up where we should be now
-        for (const replayInput of pendingInputs) {
-          playerObject.predictMovement(
-            replayInput.dt,
-            replayInput.keys,
-            replayInput.camQuat
-          );
-        }
-      }
-
-      // Clear snapshot after applying
-      playerObject.serverPos = null;
-      playerObject.serverVel = null;
-    }
-
-    // -------------------------------
-    // Predict next tick as usual
-    // -------------------------------
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
-
     accumulator -= FIXED_DT;
   }
 
-  // -------------------------------
-  // Frame-based updates
-  // -------------------------------
-  world.update(delta);
+  world.update(delta); // fixed tick
   updateCameraFollow();
   interpolatePlayers();
   interpolateVehicles();
