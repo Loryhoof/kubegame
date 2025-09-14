@@ -680,7 +680,6 @@ function animate(world: World) {
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
-    // --- 2) Apply server corrections if needed ---
     if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
@@ -690,19 +689,15 @@ function animate(world: World) {
         // Big desync → snap instantly
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 0.1) {
-        // Small desync → smooth correction
-        const alpha = 0.1; // Correction strength
-        const corrected = currentPos.lerp(playerObject.serverPos, alpha);
-        const correctedVel = new THREE.Vector3()
-          .copy(rb.linvel())
-          .lerp(playerObject.serverVel!, alpha);
-
-        rb.setTranslation(corrected, true);
-        rb.setLinvel(correctedVel, true);
+      } else if (error > 1.0) {
+        // Medium desync → one-time nudge, not full smoothing
+        const direction = playerObject.serverPos.clone().sub(currentPos);
+        rb.setTranslation(currentPos.add(direction.multiplyScalar(0.5)), true);
+        rb.setLinvel(playerObject.serverVel!, true);
+      } else {
+        // Small error → ignore it, trust local movement
       }
 
-      // Clear correction after applying
       playerObject.serverPos = null;
       playerObject.serverVel = null;
     }
