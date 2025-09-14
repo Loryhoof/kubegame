@@ -254,67 +254,23 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  const rb = player["physicsObject"].rigidBody;
-
-  player.setState(serverState as any);
-
-  // Server snapshot position & velocity
-  const serverPos = new THREE.Vector3(
+  // Store correction for main loop
+  player.serverPos = new THREE.Vector3(
     serverState.position.x,
     serverState.position.y,
     serverState.position.z
   );
-  const serverVel = new THREE.Vector3(
+  player.serverVel = new THREE.Vector3(
     serverState.velocity.x,
     serverState.velocity.y,
     serverState.velocity.z
   );
 
-  // Start correction from the snapshot
-  let correctedPos = serverPos.clone();
-  let correctedVel = serverVel.clone();
-
-  // Filter inputs we haven't processed yet
+  // Keep only inputs not yet processed
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
       (input) => input.seq > serverState.lastProcessedInputSeq!
     );
-  }
-
-  // Simulate forward with all unacknowledged inputs
-  for (const input of pendingInputs) {
-    const sim = player.simulateMovement(
-      correctedPos,
-      correctedVel,
-      input.dt,
-      input.keys,
-      input.camQuat
-    );
-    correctedPos = sim.pos;
-    correctedVel = sim.vel;
-  }
-
-  // Error check between current & corrected
-  const clientPos = new THREE.Vector3().copy(rb.translation());
-  const error = clientPos.distanceTo(correctedPos);
-  const HARD_SNAP = 1.0; // Teleport if > 1m off
-  const SOFT_SNAP = 0.05; // Soft correct if > 5cm off
-
-  if (error > HARD_SNAP) {
-    // Big error → teleport
-    rb.setTranslation(correctedPos, true);
-    rb.setLinvel(correctedVel, true);
-  } else if (error > SOFT_SNAP) {
-    // Small error → smooth correct
-    const alpha = 0.1; // 10% toward corrected each frame
-    const lerpPos = clientPos.lerp(correctedPos, alpha);
-    const lerpVel = new THREE.Vector3()
-      .copy(rb.linvel())
-      .lerp(correctedVel, alpha);
-    rb.setTranslation(lerpPos, true);
-    rb.setLinvel(lerpVel, true);
-  } else {
-    // Error negligible → leave as is
   }
 }
 
@@ -696,7 +652,6 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
   );
 }
 
-// ---------------- Animate ----------------
 const FIXED_DT = 1 / 60;
 let accumulator = 0;
 
@@ -719,11 +674,40 @@ function animate(world: World) {
     };
     pendingInputs.push(input);
     socket.emit("playerInput", input);
+
+    // --- Apply server correction once per tick ---
+    if (playerObject.serverPos) {
+      const rb = playerObject["physicsObject"].rigidBody;
+      const currentPos = new THREE.Vector3().copy(rb.translation());
+      const error = currentPos.distanceTo(playerObject.serverPos);
+
+      if (error > 1.0) {
+        // Big error → snap
+        rb.setTranslation(playerObject.serverPos, true);
+        rb.setLinvel(playerObject.serverVel!, true);
+      } else if (error > 0.05) {
+        // Small error → smooth correction
+        const alpha = 0.1; // 10% toward corrected each frame
+        const lerpPos = currentPos.lerp(playerObject.serverPos, alpha);
+        const lerpVel = new THREE.Vector3()
+          .copy(rb.linvel())
+          .lerp(playerObject.serverVel!, alpha);
+        rb.setTranslation(lerpPos, true);
+        rb.setLinvel(lerpVel, true);
+      }
+
+      // Clear after applying
+      playerObject.serverPos = null;
+      playerObject.serverVel = null;
+    }
+
+    // --- Run local prediction as usual ---
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
   }
 
-  world.update(delta); // fixed tick
+  // --- Normal per-frame updates ---
+  world.update(delta);
   updateCameraFollow();
   interpolatePlayers();
   interpolateVehicles();

@@ -56,6 +56,9 @@ class ClientPlayer {
 
   public physicsObject: PhysicsObject;
 
+  public serverPos: THREE.Vector3 | null = null;
+  public serverVel: THREE.Vector3 | null = null;
+
   // Jump control variables
   private grounded: boolean = false;
   private lastJumpTime: number = 0;
