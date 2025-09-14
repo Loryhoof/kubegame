@@ -5,6 +5,7 @@ import ClientVehicle, { Wheel } from "./ClientVehicle";
 import { getRandomFromArray } from "./utils";
 import NetworkManager from "./NetworkManager";
 import ClientNPC from "./ClientNPC";
+import ClientPhysics from "./ClientPhysics";
 
 const loader = new THREE.TextureLoader();
 
@@ -75,7 +76,9 @@ export default class World {
     socket.emit("register-object", dataObject);
   }
 
-  init() {
+  async init() {
+    await ClientPhysics.instance.init();
+
     const light = new THREE.DirectionalLight(0xffffff, 1);
     this.scene.add(light);
 
@@ -107,6 +110,12 @@ export default class World {
     this.entities.push({ id: 1, mesh: ground });
 
     this.genWorld();
+
+    // ground
+    ClientPhysics.instance.createFixedBox(
+      new THREE.Vector3(0, -0.5, 0),
+      new THREE.Vector3(500, 0.1, 500)
+    );
   }
 
   getScene() {
@@ -666,6 +675,8 @@ export default class World {
   }
 
   update(delta: number) {
+    ClientPhysics.instance.update();
+
     this.vehicles.forEach((vehicle: ClientVehicle) => {
       vehicle.update();
     });
@@ -673,6 +684,7 @@ export default class World {
     this.npcs.forEach((npc: ClientNPC) => {
       npc.update(delta);
     });
+
     // this.interactables.forEach((item) => {});
     // this.entities.forEach((entity: Entity) => {
     //   entity.update();

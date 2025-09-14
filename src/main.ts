@@ -12,6 +12,7 @@ import ChatManager from "./ChatManager";
 import ClientVehicle from "./ClientVehicle";
 import CameraManager from "./CameraManager";
 import ClientNPC from "./ClientNPC";
+import ClientPhysics from "./ClientPhysics";
 
 let world: World | null = null;
 
@@ -205,6 +206,42 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
 
   player.setState(serverState as any);
 
+  const rb = player["physicsObject"].rigidBody;
+  const clientPos = new THREE.Vector3().copy(rb.translation());
+  const clientVel = new THREE.Vector3().copy(rb.linvel());
+
+  const serverPos = new THREE.Vector3(
+    serverState.position.x,
+    serverState.position.y,
+    serverState.position.z
+  );
+
+  const serverVel = new THREE.Vector3(
+    serverState.velocity.x,
+    serverState.velocity.y,
+    serverState.velocity.z
+  );
+
+  // ---- Position Error Check ----
+  const error = clientPos.distanceTo(serverPos);
+  const POS_THRESHOLD = 0.5; // meters
+
+  if (error > POS_THRESHOLD) {
+    console.log("HARD SNAP");
+    // Hard snap if too far off
+    rb.setTranslation(serverPos, true);
+    rb.setLinvel(serverVel, true);
+  } else {
+    // Soft correction if slightly off
+    const alpha = 0.1; // how aggressively to correct small errors
+    const correctedPos = clientPos.lerp(serverPos, alpha);
+    const correctedVel = clientVel.lerp(serverVel, alpha);
+
+    rb.setTranslation(correctedPos, true);
+    rb.setLinvel(correctedVel, true);
+  }
+
+  // ---- Reapply unacknowledged inputs ----
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
       (input) => input.seq > serverState.lastProcessedInputSeq!
@@ -648,7 +685,7 @@ async function init() {
   await assetsManager.loadAll();
 
   world = new World(scene);
-  world.init();
+  await world.init();
 
   if (!socket.id) {
     console.log("no socket id i.e. no connection");

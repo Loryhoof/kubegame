@@ -1,0 +1,109 @@
+import * as RAPIER from "@dimforge/rapier3d-compat";
+import { Quaternion, Vector3 } from "three";
+
+export interface PhysicsObject {
+  rigidBody: RAPIER.RigidBody;
+  collider: RAPIER.Collider;
+}
+
+export default class ClientPhysics {
+  private static _instance: ClientPhysics | null = null;
+  public physicsWorld: RAPIER.World | null = null;
+  private physicsIsReady: boolean = false;
+
+  public static get instance(): ClientPhysics {
+    if (!this._instance) {
+      this._instance = new ClientPhysics();
+    }
+    return this._instance;
+  }
+
+  private constructor() {}
+
+  async init(): Promise<void> {
+    await RAPIER.init();
+
+    this.physicsWorld = new RAPIER.World(new RAPIER.Vector3(0.0, -9.81, 0.0));
+
+    this.physicsIsReady = true;
+  }
+
+  createPlayerCapsule(): PhysicsObject {
+    if (!this.physicsIsReady) {
+      console.log("Pjysics aint ready");
+    }
+    let rbDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(0, 5, 0)
+      .lockRotations(); //kinematicVelocityBased
+    let rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
+
+    let halfHeight = 0.2; // weird s
+    let radius = 0.275;
+
+    let capsuleColDesc = RAPIER.ColliderDesc.capsule(halfHeight, radius);
+    let collider = this.physicsWorld!.createCollider(capsuleColDesc, rigidBody);
+
+    return { rigidBody, collider };
+  }
+
+  createFixedBox(
+    position: Vector3,
+    scale: Vector3,
+    rotation: Quaternion = new Quaternion(0, 0, 0, 1)
+  ): PhysicsObject {
+    const rbDesc = RAPIER.RigidBodyDesc.fixed()
+      .setTranslation(position.x, position.y, position.z)
+      .setRotation({
+        w: rotation.w,
+        x: rotation.x,
+        y: rotation.y,
+        z: rotation.z,
+      });
+    const rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
+
+    const colDesc = RAPIER.ColliderDesc.cuboid(
+      scale.x / 2,
+      scale.y / 2,
+      scale.z / 2
+    );
+    const collider = this.physicsWorld!.createCollider(colDesc, rigidBody);
+
+    return { rigidBody, collider };
+  }
+
+  grounded(rigidBody: RAPIER.RigidBody) {
+    const origin = rigidBody.translation();
+    const ray = new RAPIER.Ray(
+      { x: origin.x, y: origin.y, z: origin.z },
+      { x: 0, y: -1, z: 0 }
+    );
+
+    const maxToi = 1.0;
+    const solid = false;
+    let filterFlags = undefined;
+    let filterGroups = undefined;
+    let filterExcludeRigidBody = rigidBody as any;
+
+    let hit = this.physicsWorld!.castRay(
+      ray,
+      maxToi,
+      solid,
+      filterFlags,
+      filterGroups,
+      filterExcludeRigidBody
+    );
+
+    return hit != null;
+  }
+
+  setLinearVelocity(rigidBody: RAPIER.RigidBody, velocity: Vector3 | Vector3) {
+    rigidBody.setLinvel(velocity, true);
+  }
+
+  update() {
+    if (!this.physicsIsReady) {
+      return;
+    }
+    this.physicsWorld!.step();
+  }
+}

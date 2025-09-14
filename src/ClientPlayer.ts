@@ -7,6 +7,7 @@ import FloatingText from "./FloatingText";
 import CameraManager from "./CameraManager";
 import World from "./World";
 import { PLAYER_MASS } from "./constants";
+import ClientPhysics, { PhysicsObject } from "./ClientPhysics";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -52,6 +53,15 @@ class ClientPlayer {
   private raycaster: THREE.Raycaster = new THREE.Raycaster();
 
   private world: World;
+
+  private physicsObject: PhysicsObject;
+
+  // Jump control variables
+  private grounded: boolean = false;
+  private lastJumpTime: number = 0;
+  private lastGroundedTime: number = 0;
+  private jumpCooldown: number = 200; // ms between jumps
+  private coyoteTime: number = 100; // ms grace period after leaving ground
 
   constructor(
     world: World,
@@ -160,6 +170,9 @@ class ClientPlayer {
 
       this.infoSprite.setPositionAbove(this.dummy, 1.5);
     }
+
+    this.physicsObject = ClientPhysics.instance.createPlayerCapsule();
+    console.log(this.physicsObject, "physicskb");
   }
 
   setPosition(position: THREE.Vector3) {
@@ -208,6 +221,10 @@ class ClientPlayer {
     return null;
   }
 
+  isGrounded(): boolean {
+    return ClientPhysics.instance.grounded(this.physicsObject.rigidBody);
+  }
+
   collidingForward(): boolean {
     const FORWARD = new THREE.Vector3(0, 0, -1);
     this.raycaster.set(
@@ -228,6 +245,18 @@ class ClientPlayer {
     return false;
   }
 
+  jump() {
+    const now = Date.now();
+    const canJump =
+      (this.grounded || now - this.lastGroundedTime <= this.coyoteTime) &&
+      now - this.lastJumpTime > this.jumpCooldown;
+
+    if (canJump) {
+      this.lastJumpTime = now;
+      this.physicsObject.rigidBody.applyImpulse({ x: 0, y: 0.8, z: 0 }, true);
+    }
+  }
+
   predictMovement(delta: number, keys?: any, quat?: THREE.Quaternion) {
     if (!this.isLocalPlayer) return;
 
@@ -241,6 +270,7 @@ class ClientPlayer {
     const WALK_SPEED = BASE_SPEED;
     const RUN_SPEED = BASE_SPEED * 2;
     const MAX_WALL_DISTANCE = 0.3;
+    const speed = input.shift ? RUN_SPEED : WALK_SPEED;
 
     // ---- INPUT VECTOR ----
     inputDir.set(0, 0, 0);
@@ -252,6 +282,7 @@ class ClientPlayer {
     const hasInput = inputDir.lengthSq() > 0;
 
     let worldDir = new THREE.Vector3();
+
     if (hasInput) {
       inputDir.normalize();
 
@@ -267,70 +298,29 @@ class ClientPlayer {
       worldDir = inputDir.applyQuaternion(yawQuat);
     }
 
-    // ---- HORIZONTAL VELOCITY ----
-    const speed = input.shift ? RUN_SPEED : WALK_SPEED;
+    // ---- JUMP ----
+    if (input[" "]) this.jump();
+
     const targetVel = hasInput
       ? worldDir.multiplyScalar(speed)
       : new THREE.Vector3(0, 0, 0);
 
-    const ACCEL = 25;
-    this.velocity.x = THREE.MathUtils.lerp(
+    this.velocity.copy(targetVel);
+
+    const rb = this.physicsObject.rigidBody;
+
+    const current = rb.linvel();
+
+    const desired = new THREE.Vector3(
       this.velocity.x,
-      targetVel.x,
-      Math.min(1, ACCEL * delta)
-    );
-    this.velocity.z = THREE.MathUtils.lerp(
-      this.velocity.z,
-      targetVel.z,
-      Math.min(1, ACCEL * delta)
+      current.y,
+      this.velocity.z
     );
 
-    // ---- GRAVITY ----
-    this.velocity.y += GRAVITY * delta;
+    ClientPhysics.instance.setLinearVelocity(rb, desired);
 
-    // ---- GROUND CHECK ----
-    const groundPoint = this.rayDown();
-    let isGrounded = false;
-
-    if (groundPoint) {
-      const dist = groundPoint.distanceTo(this.dummy.position);
-
-      // hard snap if close enough to the ground
-      if (dist <= 0.5 && this.velocity.y <= 0) {
-        this.dummy.position.y = groundPoint.y + 0.5;
-        this.velocity.y = 0;
-        isGrounded = true;
-      }
-    }
-
-    // ---- JUMP ----
-    if (input[" "] && isGrounded) {
-      this.velocity.y = JUMP_FORCE;
-      isGrounded = false;
-    }
-
-    // ---- WALL COLLISION ----
-    if (this.velocity.lengthSq() > 0.0001) {
-      this.raycaster.set(
-        this.dummy.position,
-        this.velocity.clone().normalize()
-      );
-      const intersects = this.raycaster.intersectObjects(
-        this.world.entities.map((item) => item.mesh),
-        true
-      );
-
-      if (
-        intersects.length > 0 &&
-        intersects[0].distance <= MAX_WALL_DISTANCE
-      ) {
-        this.velocity.x = 0;
-        this.velocity.z = 0;
-      }
-    }
-
-    // ---- APPLY MOVEMENT ----
-    this.dummy.position.addScaledVector(this.velocity, delta);
+    // Sync position
+    this.setPosition(rb.translation() as THREE.Vector3);
 
     // ---- ROTATE PLAYER ----
     const horizontalVelocity = new THREE.Vector3(
@@ -359,6 +349,135 @@ class ClientPlayer {
         this.dummy.quaternion.slerp(targetQuat, 0.25);
       }
     }
+
+    // const input = keys || InputManager.instance.getState();
+    // const inputDir = new THREE.Vector3();
+
+    // const GRAVITY = -9.81;
+    // const JUMP_IMPULSE = 0.8; // backend impulse
+    // const JUMP_FORCE = JUMP_IMPULSE / PLAYER_MASS;
+    // const BASE_SPEED = 4;
+    // const WALK_SPEED = BASE_SPEED;
+    // const RUN_SPEED = BASE_SPEED * 2;
+    // const MAX_WALL_DISTANCE = 0.3;
+
+    // // ---- INPUT VECTOR ----
+    // inputDir.set(0, 0, 0);
+    // if (input.w) inputDir.z -= 1;
+    // if (input.s) inputDir.z += 1;
+    // if (input.a) inputDir.x -= 1;
+    // if (input.d) inputDir.x += 1;
+
+    // const hasInput = inputDir.lengthSq() > 0;
+
+    // let worldDir = new THREE.Vector3();
+    // if (hasInput) {
+    //   inputDir.normalize();
+
+    //   const camQuat = quat || CameraManager.instance.getCamera().quaternion;
+    //   const euler = new THREE.Euler(0, 0, 0, "YXZ");
+    //   euler.setFromQuaternion(camQuat);
+
+    //   const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+    //     new THREE.Vector3(0, 1, 0),
+    //     euler.y
+    //   );
+
+    //   worldDir = inputDir.applyQuaternion(yawQuat);
+    // }
+
+    // // ---- HORIZONTAL VELOCITY ----
+    // const speed = input.shift ? RUN_SPEED : WALK_SPEED;
+    // const targetVel = hasInput
+    //   ? worldDir.multiplyScalar(speed)
+    //   : new THREE.Vector3(0, 0, 0);
+
+    // const ACCEL = 25;
+    // this.velocity.x = THREE.MathUtils.lerp(
+    //   this.velocity.x,
+    //   targetVel.x,
+    //   Math.min(1, ACCEL * delta)
+    // );
+    // this.velocity.z = THREE.MathUtils.lerp(
+    //   this.velocity.z,
+    //   targetVel.z,
+    //   Math.min(1, ACCEL * delta)
+    // );
+
+    // // ---- GRAVITY ----
+    // this.velocity.y += GRAVITY * delta;
+
+    // // ---- GROUND CHECK ----
+    // const groundPoint = this.rayDown();
+    // let isGrounded = false;
+
+    // if (groundPoint) {
+    //   const dist = groundPoint.distanceTo(this.dummy.position);
+
+    //   // hard snap if close enough to the ground
+    //   if (dist <= 0.5 && this.velocity.y <= 0) {
+    //     this.dummy.position.y = groundPoint.y + 0.5;
+    //     this.velocity.y = 0;
+    //     isGrounded = true;
+    //   }
+    // }
+
+    // // ---- JUMP ----
+    // if (input[" "] && isGrounded) {
+    //   this.velocity.y = JUMP_FORCE;
+    //   isGrounded = false;
+    // }
+
+    // // ---- WALL COLLISION ----
+    // if (this.velocity.lengthSq() > 0.0001) {
+    //   this.raycaster.set(
+    //     this.dummy.position,
+    //     this.velocity.clone().normalize()
+    //   );
+    //   const intersects = this.raycaster.intersectObjects(
+    //     this.world.entities.map((item) => item.mesh),
+    //     true
+    //   );
+
+    //   if (
+    //     intersects.length > 0 &&
+    //     intersects[0].distance <= MAX_WALL_DISTANCE
+    //   ) {
+    //     this.velocity.x = 0;
+    //     this.velocity.z = 0;
+    //   }
+    // }
+
+    // // ---- APPLY MOVEMENT ----
+    // this.dummy.position.addScaledVector(this.velocity, delta);
+
+    // // ---- ROTATE PLAYER ----
+    // const horizontalVelocity = new THREE.Vector3(
+    //   this.velocity.x,
+    //   0,
+    //   this.velocity.z
+    // );
+
+    // if (horizontalVelocity.lengthSq() > 0.0001) {
+    //   if (input.mouseRight) {
+    //     const camQuat = quat || CameraManager.instance.getCamera().quaternion;
+    //     const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+
+    //     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+    //       new THREE.Vector3(0, 1, 0),
+    //       euler.y
+    //     );
+
+    //     this.dummy.quaternion.slerp(yawQuat, 0.25);
+    //   } else {
+    //     const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+    //     const targetQuat = new THREE.Quaternion().setFromAxisAngle(
+    //       new THREE.Vector3(0, 1, 0),
+    //       yaw
+    //     );
+    //     this.dummy.quaternion.slerp(targetQuat, 0.25);
+    //   }
+    // }
   }
 
   createFloatingText(): THREE.Sprite {
@@ -452,24 +571,24 @@ class ClientPlayer {
 
     this.coins = coins;
     this.color = color;
-    this.velocity.copy(velocity);
+    // this.velocity.copy(velocity);
     this.health = health;
-    this.dummy.position.copy(position);
-    this.keys = keys;
+    // this.dummy.position.copy(position);
+    // this.keys = keys;
     this.isSitting = isSitting;
 
     this.controlledObject = controlledObject;
 
     // Smooth rotation
-    this.dummy.quaternion.slerp(
-      new THREE.Quaternion(
-        quaternion.x,
-        quaternion.y,
-        quaternion.z,
-        quaternion.w
-      ),
-      0.25
-    );
+    // this.dummy.quaternion.slerp(
+    //   new THREE.Quaternion(
+    //     quaternion.x,
+    //     quaternion.y,
+    //     quaternion.z,
+    //     quaternion.w
+    //   ),
+    //   0.25
+    // );
 
     // Initial material setup
     if (!this.hasInit) {
@@ -637,6 +756,14 @@ class ClientPlayer {
   }
 
   update(delta: number) {
+    // Check grounded before movement
+    if (this.isGrounded()) {
+      this.grounded = true;
+      this.lastGroundedTime = Date.now();
+    } else {
+      this.grounded = false;
+    }
+
     // this.predictMovement(delta);
     this.updateAnimationState(delta);
     this.updateAudio();
