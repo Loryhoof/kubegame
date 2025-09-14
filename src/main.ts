@@ -281,38 +281,17 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     );
   }
 
-  // // Simulate forward with all unacknowledged inputs
-  // for (const input of pendingInputs) {
-  //   const sim = player.simulateMovement(
-  //     correctedPos,
-  //     correctedVel,
-  //     input.dt,
-  //     input.keys,
-  //     input.camQuat
-  //   );
-  //   correctedPos = sim.pos;
-  //   correctedVel = sim.vel;
-  // }
-
+  // Simulate forward with all unacknowledged inputs
   for (const input of pendingInputs) {
-    let remaining = input.dt;
-    while (remaining > 0) {
-      const step = Math.min(1 / 60, remaining);
-
-      // 1. Apply movement input to rigidbody
-      const rb = player.physicsObject.rigidBody;
-      const moveVel = getVelocityFromInput(input.keys, input.camQuat);
-      rb.setLinvel({ x: moveVel.x, y: rb.linvel().y, z: moveVel.z }, true);
-
-      // 2. Step physics world
-      ClientPhysics.instance.physicsWorld!.step();
-
-      // 3. Sync player dummy to physics body
-      const t = rb.translation();
-      player.setPosition(new THREE.Vector3(t.x, t.y, t.z));
-
-      remaining -= step;
-    }
+    const sim = player.simulateMovement(
+      correctedPos,
+      correctedVel,
+      input.dt,
+      input.keys,
+      input.camQuat
+    );
+    correctedPos = sim.pos;
+    correctedVel = sim.vel;
   }
 
   // Error check between current & corrected
