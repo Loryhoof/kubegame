@@ -215,6 +215,8 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
 
   const rb = player["physicsObject"].rigidBody;
 
+  player.setState(serverState as any);
+
   // Server snapshot position & velocity
   const serverPos = new THREE.Vector3(
     serverState.position.x,
