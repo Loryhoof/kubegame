@@ -681,13 +681,17 @@ function animate(world: World) {
       const currentPos = new THREE.Vector3().copy(rb.translation());
       const error = currentPos.distanceTo(playerObject.serverPos);
 
-      if (error > 1.0) {
-        // Big error → snap
+      // Ping-scaled thresholds to avoid overcorrection at high ping
+      const softSnap = Math.min(0.1 + ping * 0.001, 0.5); // grows with ping
+      const hardSnap = Math.min(2.0 + ping * 0.005, 5.0); // grows with ping
+
+      if (error > hardSnap) {
+        // Hard snap if way off
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 0.05) {
-        // Small error → smooth correction
-        const alpha = 0.1; // 10% toward corrected each frame
+      } else if (error > softSnap) {
+        // Smooth correction; slower at high ping
+        const alpha = Math.min(0.1, 1.0 / (ping * 0.05 + 1.0));
         const lerpPos = currentPos.lerp(playerObject.serverPos, alpha);
         const lerpVel = new THREE.Vector3()
           .copy(rb.linvel())
@@ -701,12 +705,12 @@ function animate(world: World) {
       playerObject.serverVel = null;
     }
 
-    // --- Run local prediction as usual ---
+    // --- Local prediction as usual ---
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
   }
 
-  // --- Normal per-frame updates ---
+  // --- Frame-based updates ---
   world.update(delta);
   updateCameraFollow();
   interpolatePlayers();
