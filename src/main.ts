@@ -675,42 +675,50 @@ function animate(world: World) {
     pendingInputs.push(input);
     socket.emit("playerInput", input);
 
-    // --- Apply server correction once per tick ---
+    // -------------------------------
+    // Server reconciliation with replay
+    // -------------------------------
     if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
       const error = currentPos.distanceTo(playerObject.serverPos);
 
-      // Ping-scaled thresholds to avoid overcorrection at high ping
-      const softSnap = Math.min(0.1 + ping * 0.001, 0.5); // grows with ping
-      const hardSnap = Math.min(2.0 + ping * 0.005, 5.0); // grows with ping
-
-      if (error > hardSnap) {
-        // Hard snap if way off
+      // Big error? Snap + clear inputs
+      if (error > 3.0) {
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > softSnap) {
-        // Smooth correction; slower at high ping
-        const alpha = Math.min(0.1, 1.0 / (ping * 0.05 + 1.0));
-        const lerpPos = currentPos.lerp(playerObject.serverPos, alpha);
-        const lerpVel = new THREE.Vector3()
-          .copy(rb.linvel())
-          .lerp(playerObject.serverVel!, alpha);
-        rb.setTranslation(lerpPos, true);
-        rb.setLinvel(lerpVel, true);
+        pendingInputs = [];
+      } else {
+        // Reset to server state first
+        rb.setTranslation(playerObject.serverPos, true);
+        rb.setLinvel(playerObject.serverVel!, true);
+
+        // Replay all unprocessed inputs so we end up where we should be now
+        for (const replayInput of pendingInputs) {
+          playerObject.predictMovement(
+            replayInput.dt,
+            replayInput.keys,
+            replayInput.camQuat
+          );
+        }
       }
 
-      // Clear after applying
+      // Clear snapshot after applying
       playerObject.serverPos = null;
       playerObject.serverVel = null;
     }
 
-    // --- Local prediction as usual ---
+    // -------------------------------
+    // Predict next tick as usual
+    // -------------------------------
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
+
     accumulator -= FIXED_DT;
   }
 
-  // --- Frame-based updates ---
+  // -------------------------------
+  // Frame-based updates
+  // -------------------------------
   world.update(delta);
   updateCameraFollow();
   interpolatePlayers();
