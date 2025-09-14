@@ -58,6 +58,9 @@ class ClientPlayer {
 
   public serverPos: THREE.Vector3 | null = null;
   public serverVel: THREE.Vector3 | null = null;
+  public serverQuat: THREE.Quaternion | null = null;
+  public lastServerSeq: number | null = null;
+  public _lastAppliedServerSeq: number | null = null;
 
   // Jump control variables
   private grounded: boolean = false;
