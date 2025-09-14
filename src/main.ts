@@ -13,6 +13,7 @@ import ClientVehicle from "./ClientVehicle";
 import CameraManager from "./CameraManager";
 import ClientNPC from "./ClientNPC";
 import ClientPhysics from "./ClientPhysics";
+import DebugState from "./state/DebugState";
 
 let world: World | null = null;
 
@@ -179,7 +180,10 @@ function registerSocketEvents(world: World) {
     // handle local separately
     const localState = data.players[localId];
     if (localState) {
-      // reconcileLocalPlayer(localState);
+      if (DebugState.instance.reconciliation) {
+        reconcileLocalPlayer(localState);
+      }
+
       delete data.players[localId];
     }
 

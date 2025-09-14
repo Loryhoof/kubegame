@@ -4,6 +4,7 @@ import InputManager from "../InputManager";
 import NetworkManager from "../NetworkManager";
 import { Socket } from "socket.io-client";
 import ChatManager, { ChatMessage } from "../ChatManager";
+import DebugState from "../state/DebugState";
 
 const CHAR_LIMIT = 500;
 
@@ -14,19 +15,81 @@ export default function Chat() {
   const [isTyping, setIsTyping] = useState(false);
   const chatRef = useRef<HTMLDivElement | null>(null);
 
+  // --- Command registry ---
+  const commands: Record<
+    string,
+    {
+      description: string;
+      usage: string;
+      execute: (args: string[]) => void;
+    }
+  > = {
+    recon: {
+      description: "Enable or disable reconciliation",
+      usage: "/recon true|false",
+      execute: (args) => {
+        const value = args[0]?.toLowerCase();
+        if (value === "true") {
+          DebugState.instance.reconciliation = true;
+          addSystemMessage("Reconciliation enabled");
+        } else if (value === "false") {
+          DebugState.instance.reconciliation = false;
+          addSystemMessage("Reconciliation disabled");
+        } else {
+          addSystemMessage("Usage: " + commands.recon.usage);
+        }
+      },
+    },
+    help: {
+      description: "List all commands",
+      usage: "/help",
+      execute: () => {
+        addSystemMessage("Available commands:");
+        for (const cmd in commands) {
+          addSystemMessage(`/${cmd} - ${commands[cmd].description}`);
+        }
+      },
+    },
+  };
+
+  // --- Parse and execute commands ---
+  const handleCommand = (cmd: string) => {
+    const parts = cmd.trim().split(" ");
+    const commandName = parts[0].slice(1).toLowerCase(); // remove "/"
+    const args = parts.slice(1);
+
+    if (commands[commandName]) {
+      commands[commandName].execute(args);
+    } else {
+      addSystemMessage(`Unknown command: ${commandName}`);
+    }
+  };
+
+  const addSystemMessage = (text: string) => {
+    setMessages((prev) => [...prev, { id: "system", text }]);
+  };
+
+  // --- Send message or command ---
   const sendMessage = () => {
     setIsTyping(false);
     if (!input.trim()) return;
     if (input.length >= CHAR_LIMIT) return;
 
+    // --- Handle commands before sending normal chat ---
+    if (input.startsWith("/")) {
+      handleCommand(input);
+      setInput("");
+      return;
+    }
+
+    // Regular chat message
     const newMessage: ChatMessage = { id: socket.id as string, text: input };
     setMessages((prev) => [...prev, newMessage]);
-
     socket.emit("send-chat-message", newMessage);
-
     setInput("");
   };
 
+  // --- Initialize chat from events ---
   useEffect(() => {
     const initChatMessages = (data: any) => {
       setMessages(data.detail.messages);
@@ -38,7 +101,7 @@ export default function Chat() {
       window.removeEventListener("init-chat-messages", initChatMessages as any);
   }, []);
 
-  // Listen for incoming messages
+  // --- Listen for incoming messages from server ---
   useEffect(() => {
     const handleMessage = (e: any) => {
       setMessages((prev) => [...prev, { id: e.id as string, text: e.text }]);
@@ -50,7 +113,7 @@ export default function Chat() {
     };
   }, [socket]);
 
-  // Handle typing hotkeys
+  // --- Handle typing hotkeys ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.key === "t" || e.key === "T") && !isTyping) {
@@ -67,12 +130,12 @@ export default function Chat() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isTyping]);
 
-  // Auto-scroll to latest message
+  // --- Auto-scroll to latest message ---
   useEffect(() => {
     if (chatRef.current) {
       chatRef.current.scrollTo({
         top: chatRef.current.scrollHeight,
-        behavior: "smooth", // Smooth scrolling
+        behavior: "smooth",
       });
     }
   }, [messages]);
@@ -80,7 +143,6 @@ export default function Chat() {
   return (
     <div className="fixed z-[1000] bottom-1/4 left-4 w-60 transition-all duration-200 flex flex-col pointer-events-none h-64">
       {/* Chat field */}
-
       <p className="text-xs font-light ml-1 mb-2">
         Press <span className="bg-white rounded-lg p-1 px-2 font-bold">T</span>{" "}
         to type a message
@@ -92,8 +154,14 @@ export default function Chat() {
         }`}
       >
         {messages.map((msg, index) => (
-          <div key={`${msg.id}-${index}`} className="px-1 py-0.5 text-gray-200">
-            {`${msg.id.slice(0, 4)}:`} {msg.text}
+          <div
+            key={`${msg.id}-${index}`}
+            className={`px-1 py-0.5 ${
+              msg.id === "system" ? "text-yellow-400" : "text-gray-200"
+            }`}
+          >
+            {msg.id === "system" ? "system:" : `${msg.id.slice(0, 4)}:`}{" "}
+            {msg.text}
           </div>
         ))}
       </div>
