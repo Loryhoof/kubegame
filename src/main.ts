@@ -283,278 +283,247 @@ const extrapolationState = new Map<
 >();
 const serverTickMs = 1000 / 30;
 
-function interpolatePlayers() {
-  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
-  if (snapshotBuffer.length < 2) return;
-
-  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
+function getSnapshotPair(
+  renderTime: number
+): [Snapshot | null, Snapshot | null] {
   let older: Snapshot | null = null;
   let newer: Snapshot | null = null;
 
   for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
-    if (snapshotBuffer[i].time <= renderServerTime) {
+    if (snapshotBuffer[i].time <= renderTime) {
       older = snapshotBuffer[i];
       newer = snapshotBuffer[i + 1] || null;
       break;
     }
   }
-  if (!older) return;
 
+  return [older, newer];
+}
+
+function interpolatePlayersAtTime(renderTime: number) {
+  const [older, newer] = getSnapshotPair(renderTime);
+  if (!older) return; // no snapshots yet
+
+  let t = 0;
   if (newer) {
-    extrapolationState.clear();
     const dt = newer.time - older.time;
-    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
-    const t = Math.max(0, Math.min(1, alpha));
+    t = dt > 0 ? (renderTime - older.time) / dt : 0;
+    t = Math.max(0, Math.min(1, t)); // clamp
+  }
 
-    for (const id in older.players) {
-      const pOld = older.players[id];
-      const pNew = newer.players[id] || pOld;
+  for (const id in older.players) {
+    if (id === localId) continue; // local player handled elsewhere
 
-      let netPlayer = networkPlayers.get(id);
-      if (id === localId) continue; // skip local, reconciliation handles it
+    const pOld = older.players[id];
+    const pNew = newer?.players[id] || pOld;
 
-      // if (!netPlayer) {
-      //   netPlayer = new ClientPlayer(world, id, pOld.color, scene);
-      //   networkPlayers.set(id, netPlayer);
-      // }
+    const netPlayer = networkPlayers.get(id);
+    if (!netPlayer) continue;
 
-      const posOld = new THREE.Vector3(
-        pOld.position.x,
-        pOld.position.y,
-        pOld.position.z
-      );
-      const posNew = new THREE.Vector3(
-        pNew.position.x,
-        pNew.position.y,
-        pNew.position.z
-      );
-      const targetPos = posOld.lerp(posNew, t);
+    const posOld = new THREE.Vector3(
+      pOld.position.x,
+      pOld.position.y,
+      pOld.position.z
+    );
+    const posNew = new THREE.Vector3(
+      pNew.position.x,
+      pNew.position.y,
+      pNew.position.z
+    );
+    const pos = posOld.lerp(posNew, t);
 
-      const quatOld = new THREE.Quaternion(
-        pOld.quaternion.x,
-        pOld.quaternion.y,
-        pOld.quaternion.z,
-        pOld.quaternion.w
-      );
-      const quatNew = new THREE.Quaternion(
-        pNew.quaternion.x,
-        pNew.quaternion.y,
-        pNew.quaternion.z,
-        pNew.quaternion.w
-      );
-      const targetQuat = quatOld.slerp(quatNew, t);
+    const quatOld = new THREE.Quaternion(
+      pOld.quaternion.x,
+      pOld.quaternion.y,
+      pOld.quaternion.z,
+      pOld.quaternion.w
+    );
+    const quatNew = new THREE.Quaternion(
+      pNew.quaternion.x,
+      pNew.quaternion.y,
+      pNew.quaternion.z,
+      pNew.quaternion.w
+    );
+    const quat = quatOld.slerp(quatNew, t);
 
-      const velOld = new THREE.Vector3(
-        pOld.velocity.x,
-        pOld.velocity.y,
-        pOld.velocity.z
-      );
-      const velNew = new THREE.Vector3(
-        pNew.velocity.x,
-        pNew.velocity.y,
-        pNew.velocity.z
-      );
-      const targetVel = velOld.lerp(velNew, t);
+    const velOld = new THREE.Vector3(
+      pOld.velocity.x,
+      pOld.velocity.y,
+      pOld.velocity.z
+    );
+    const velNew = new THREE.Vector3(
+      pNew.velocity.x,
+      pNew.velocity.y,
+      pNew.velocity.z
+    );
+    const vel = velOld.lerp(velNew, t);
 
-      netPlayer?.setState({
-        position: targetPos,
-        quaternion: targetQuat,
-        color: pNew.color,
-        health: pNew.health,
-        coins: pNew.coins,
-        velocity: targetVel,
-        keys: pNew.keys,
-        isSitting: pNew.isSitting,
-        controlledObject: pNew.controlledObject,
-      });
-    }
+    netPlayer.setState({
+      position: pos,
+      quaternion: quat,
+      velocity: vel,
+      color: pNew.color,
+      health: pNew.health,
+      coins: pNew.coins,
+      keys: pNew.keys,
+      isSitting: pNew.isSitting,
+      controlledObject: pNew.controlledObject,
+    });
   }
 }
 
-function interpolateVehicles() {
-  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
-  if (snapshotBuffer.length < 2) return;
-
-  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
-  let older: Snapshot | null = null;
-  let newer: Snapshot | null = null;
-
-  for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
-    if (snapshotBuffer[i].time <= renderServerTime) {
-      older = snapshotBuffer[i];
-      newer = snapshotBuffer[i + 1] || null;
-      break;
-    }
-  }
+function interpolateVehiclesAtTime(renderTime: number) {
+  const [older, newer] = getSnapshotPair(renderTime);
   if (!older) return;
 
+  let t = 0;
   if (newer) {
-    extrapolationState.clear();
     const dt = newer.time - older.time;
-    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
-    const t = Math.max(0, Math.min(1, alpha));
+    t = dt > 0 ? (renderTime - older.time) / dt : 0;
+    t = Math.max(0, Math.min(1, t));
+  }
 
-    for (let i = 0; i < older.vehicles.length; i++) {
-      const pOld = older.vehicles[i] as ClientVehicle;
-      const pNew = newer.vehicles[i] || pOld;
+  for (let i = 0; i < older.vehicles.length; i++) {
+    const pOld = older.vehicles[i];
+    const pNew = newer?.vehicles[i] || pOld;
 
-      const clientVehicle = world?.getObjById(pOld.id, world.vehicles);
-      if (!clientVehicle) return;
+    const clientVehicle = world?.getObjById(pOld.id, world.vehicles);
+    if (!clientVehicle) continue;
 
-      const posOld = new THREE.Vector3(
-        pOld.position.x,
-        pOld.position.y,
-        pOld.position.z
+    const posOld = new THREE.Vector3(
+      pOld.position.x,
+      pOld.position.y,
+      pOld.position.z
+    );
+    const posNew = new THREE.Vector3(
+      pNew.position.x,
+      pNew.position.y,
+      pNew.position.z
+    );
+    const pos = posOld.lerp(posNew, t);
+
+    const quatOld = new THREE.Quaternion(
+      pOld.quaternion.x,
+      pOld.quaternion.y,
+      pOld.quaternion.z,
+      pOld.quaternion.w
+    );
+    const quatNew = new THREE.Quaternion(
+      pNew.quaternion.x,
+      pNew.quaternion.y,
+      pNew.quaternion.z,
+      pNew.quaternion.w
+    );
+    const quat = quatOld.slerp(quatNew, t);
+
+    const oldWheels = pOld.wheels;
+    const newWheels = pNew.wheels;
+    const wheels: any[] = [];
+
+    for (let w = 0; w < oldWheels.length; w++) {
+      const oldWheel = oldWheels[w];
+      const newWheel = newWheels[w];
+
+      const oldPos = new THREE.Vector3(
+        oldWheel.worldPosition.x,
+        oldWheel.worldPosition.y,
+        oldWheel.worldPosition.z
       );
-      const posNew = new THREE.Vector3(
-        pNew.position.x,
-        pNew.position.y,
-        pNew.position.z
+      const newPos = new THREE.Vector3(
+        newWheel.worldPosition.x,
+        newWheel.worldPosition.y,
+        newWheel.worldPosition.z
       );
-      const targetPos = posOld.lerp(posNew, t);
+      const wheelPos = oldPos.lerp(newPos, t);
 
-      const quatOld = new THREE.Quaternion(
-        pOld.quaternion.x,
-        pOld.quaternion.y,
-        pOld.quaternion.z,
-        pOld.quaternion.w
+      const oldQuat = new THREE.Quaternion(
+        oldWheel.quaternion.x,
+        oldWheel.quaternion.y,
+        oldWheel.quaternion.z,
+        oldWheel.quaternion.w
       );
-      const quatNew = new THREE.Quaternion(
-        pNew.quaternion.x,
-        pNew.quaternion.y,
-        pNew.quaternion.z,
-        pNew.quaternion.w
+      const newQuat = new THREE.Quaternion(
+        newWheel.quaternion.x,
+        newWheel.quaternion.y,
+        newWheel.quaternion.z,
+        newWheel.quaternion.w
       );
-      const targetQuat = quatOld.slerp(quatNew, t);
+      const wheelQuat = oldQuat.slerp(newQuat, t);
 
-      const oldWheels = pOld.wheels;
-      const newWheels = (pNew as ClientVehicle).wheels;
-      const targetWheels: any[] = [];
-
-      for (let wheelIndex = 0; wheelIndex < oldWheels.length; wheelIndex++) {
-        const oldWheel = oldWheels[wheelIndex];
-        const newWheel = newWheels[wheelIndex];
-
-        const oldWheelPos = new THREE.Vector3(
-          oldWheel.worldPosition.x,
-          oldWheel.worldPosition.y,
-          oldWheel.worldPosition.z
-        );
-        const newWheelPos = new THREE.Vector3(
-          newWheel.worldPosition.x,
-          newWheel.worldPosition.y,
-          newWheel.worldPosition.z
-        );
-
-        const targetWheelPos = oldWheelPos.lerp(newWheelPos, t);
-
-        const oldWheelQuat = new THREE.Quaternion(
-          oldWheel.quaternion.x,
-          oldWheel.quaternion.y,
-          oldWheel.quaternion.z,
-          oldWheel.quaternion.w
-        );
-        const newWheelQuat = new THREE.Quaternion(
-          newWheel.quaternion.x,
-          newWheel.quaternion.y,
-          newWheel.quaternion.z,
-          newWheel.quaternion.w
-        );
-
-        const targetWheelQuat = oldWheelQuat.slerp(newWheelQuat, t);
-
-        targetWheels[wheelIndex] = {
-          worldPosition: targetWheelPos,
-          quaternion: targetWheelQuat,
-        };
-      }
-
-      clientVehicle.updateState(
-        targetPos,
-        targetQuat,
-        targetWheels,
-        (pNew as ClientVehicle).hornPlaying
-      );
+      wheels[w] = { worldPosition: wheelPos, quaternion: wheelQuat };
     }
+
+    clientVehicle.updateState(pos, quat, wheels, pNew.hornPlaying);
   }
 }
 
-function interpolateNPCs() {
-  const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
-  if (snapshotBuffer.length < 2) return;
-
-  const renderServerTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
-  let older: Snapshot | null = null;
-  let newer: Snapshot | null = null;
-
-  for (let i = snapshotBuffer.length - 1; i >= 0; i--) {
-    if (snapshotBuffer[i].time <= renderServerTime) {
-      older = snapshotBuffer[i];
-      newer = snapshotBuffer[i + 1] || null;
-      break;
-    }
-  }
+function interpolateNPCsAtTime(renderTime: number) {
+  const [older, newer] = getSnapshotPair(renderTime);
   if (!older) return;
 
+  let t = 0;
   if (newer) {
-    extrapolationState.clear();
     const dt = newer.time - older.time;
-    const alpha = dt > 0 ? (renderServerTime - older.time) / dt : 0;
-    const t = Math.max(0, Math.min(1, alpha));
+    t = dt > 0 ? (renderTime - older.time) / dt : 0;
+    t = Math.max(0, Math.min(1, t));
+  }
 
-    for (let i = 0; i < older.npcs.length; i++) {
-      const pOld = older.npcs[i] as any;
-      const pNew = newer.npcs[i] || pOld;
+  for (let i = 0; i < older.npcs.length; i++) {
+    const pOld = older.npcs[i];
+    const pNew = newer?.npcs[i] || pOld;
 
-      const clientNPC = world?.getObjById(pOld.networkId, world.npcs);
-      if (!clientNPC) return;
+    const clientNPC = world?.getObjById(pOld.networkId, world.npcs);
+    if (!clientNPC) continue;
 
-      const posOld = new THREE.Vector3(
-        pOld.position.x,
-        pOld.position.y,
-        pOld.position.z
-      );
-      const posNew = new THREE.Vector3(
-        pNew.position.x,
-        pNew.position.y,
-        pNew.position.z
-      );
-      const targetPos = posOld.lerp(posNew, t);
+    const posOld = new THREE.Vector3(
+      pOld.position.x,
+      pOld.position.y,
+      pOld.position.z
+    );
+    const posNew = new THREE.Vector3(
+      pNew.position.x,
+      pNew.position.y,
+      pNew.position.z
+    );
+    const pos = posOld.lerp(posNew, t);
 
-      const quatOld = new THREE.Quaternion(
-        pOld.quaternion.x,
-        pOld.quaternion.y,
-        pOld.quaternion.z,
-        pOld.quaternion.w
-      );
-      const quatNew = new THREE.Quaternion(
-        pNew.quaternion.x,
-        pNew.quaternion.y,
-        pNew.quaternion.z,
-        pNew.quaternion.w
-      );
-      const targetQuat = quatOld.slerp(quatNew, t);
+    const quatOld = new THREE.Quaternion(
+      pOld.quaternion.x,
+      pOld.quaternion.y,
+      pOld.quaternion.z,
+      pOld.quaternion.w
+    );
+    const quatNew = new THREE.Quaternion(
+      pNew.quaternion.x,
+      pNew.quaternion.y,
+      pNew.quaternion.z,
+      pNew.quaternion.w
+    );
+    const quat = quatOld.slerp(quatNew, t);
 
-      const targetVel = new THREE.Vector3(
-        pOld.velocity.x,
-        pOld.velocity.y,
-        pOld.velocity.z
-      ).lerp(
-        new THREE.Vector3(pNew.velocity.x, pNew.velocity.y, pNew.velocity.z),
-        t
-      );
-      clientNPC.setState({
-        position: targetPos,
-        quaternion: targetQuat,
-        color: pNew.color,
-        health: pNew.health,
-        coins: pNew.coins,
-        velocity: targetVel,
-        keys: pNew.keys,
-        isSitting: pNew.isSitting,
-        controlledObject: pNew.controlledObject,
-      });
-    }
+    const velOld = new THREE.Vector3(
+      pOld.velocity.x,
+      pOld.velocity.y,
+      pOld.velocity.z
+    );
+    const velNew = new THREE.Vector3(
+      pNew.velocity.x,
+      pNew.velocity.y,
+      pNew.velocity.z
+    );
+    const vel = velOld.lerp(velNew, t);
+
+    clientNPC.setState({
+      position: pos,
+      quaternion: quat,
+      velocity: vel,
+      color: pNew.color,
+      health: pNew.health,
+      coins: pNew.coins,
+      keys: pNew.keys,
+      isSitting: pNew.isSitting,
+      controlledObject: pNew.controlledObject,
+    });
   }
 }
 
@@ -655,6 +624,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
 }
 
 const FIXED_DT = 1 / 60;
+const INTERP_DELAY = 150; // ms delay for smooth rendering in the past
 let accumulator = 0;
 
 function animate(world: World) {
@@ -665,9 +635,11 @@ function animate(world: World) {
   const playerObject = networkPlayers.get(localId);
   if (!playerObject) return;
 
+  // --- 1) Add frame time to accumulator for fixed-step simulation ---
   accumulator += delta;
+
+  // --- 2) Process local inputs & predict instantly ---
   while (accumulator >= FIXED_DT) {
-    // --- 1) Gather input & predict locally (always smooth) ---
     const keys = InputManager.instance.getState();
     const input = {
       seq: inputSeq++,
@@ -677,53 +649,62 @@ function animate(world: World) {
     };
     pendingInputs.push(input);
     socket.emit("playerInput", input);
+
+    // Predict local movement immediately for responsiveness
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
+
     accumulator -= FIXED_DT;
-
-    if (playerObject.serverPos) {
-      const rb = playerObject["physicsObject"].rigidBody;
-      const currentPos = new THREE.Vector3().copy(rb.translation());
-      const error = currentPos.distanceTo(playerObject.serverPos);
-
-      if (error > 5.0) {
-        // Big desync → snap instantly
-        rb.setTranslation(playerObject.serverPos, true);
-        rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 1.0) {
-        // Medium desync → one-time nudge, not full smoothing
-        const direction = playerObject.serverPos.clone().sub(currentPos);
-        rb.setTranslation(currentPos.add(direction.multiplyScalar(0.5)), true);
-        rb.setLinvel(playerObject.serverVel!, true);
-      } else {
-        // Small error → ignore it, trust local movement
-      }
-
-      playerObject.serverPos = null;
-      playerObject.serverVel = null;
-    }
   }
 
-  // --- 3) Update world & visuals ---
+  // --- 3) Figure out what time we should render at (run world in the past) ---
+  const renderTime = Date.now() + serverTimeOffsetMs - INTERP_DELAY;
+
+  // --- 4) Apply latest server snapshots up to renderTime ---
+  // Interpolation for other players, vehicles, NPCs
+  interpolatePlayersAtTime(renderTime);
+  interpolateVehiclesAtTime(renderTime);
+  interpolateNPCsAtTime(renderTime);
+
+  // --- 5) Reconcile local player in the past timeline ---
+  if (playerObject.serverPos) {
+    const rb = playerObject["physicsObject"].rigidBody;
+    const currentPos = new THREE.Vector3().copy(rb.translation());
+    const error = currentPos.distanceTo(playerObject.serverPos);
+
+    if (error > 5.0) {
+      // Big desync → snap instantly
+      rb.setTranslation(playerObject.serverPos, true);
+      rb.setLinvel(playerObject.serverVel!, true);
+    } else if (error > 1.0) {
+      // Medium desync → smooth nudge toward server
+      const direction = playerObject.serverPos.clone().sub(currentPos);
+      rb.setTranslation(currentPos.add(direction.multiplyScalar(0.3)), true);
+      rb.setLinvel(playerObject.serverVel!, true);
+    }
+
+    playerObject.serverPos = null;
+    playerObject.serverVel = null;
+  }
+
+  // --- 6) Update the world & camera ---
   world.update(delta);
   updateCameraFollow();
-  interpolatePlayers();
-  interpolateVehicles();
-  interpolateNPCs();
 
-  networkPlayers.forEach((player: ClientPlayer) => {
-    player.update(delta);
-  });
+  // --- 7) Update players, vehicles, NPCs visually ---
+  networkPlayers.forEach((p) => p.update(delta));
 
-  // --- 4) Update UI ---
+  // --- 8) Update UI ---
   if (playerObject) {
     const wantsToInteract = checkPlayerInteractables(playerObject, world);
     updateUI(playerObject, wantsToInteract);
   }
 
-  // --- 5) Render ---
+  // --- 9) Render frame ---
   renderer.render(scene, camera);
   stats.end();
   inputManager.update();
+
+  // --- 10) Next frame ---
   requestAnimationFrame(() => animate(world));
 }
 
