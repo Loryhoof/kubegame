@@ -229,8 +229,8 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   if (error > POS_THRESHOLD) {
     console.log("HARD SNAP");
     // Hard snap if too far off
-    rb.setTranslation(serverPos, true);
-    rb.setLinvel(serverVel, true);
+    //rb.setTranslation(serverPos, true);
+    //rb.setLinvel(serverVel, true);
   } else {
     // // Soft correction if slightly off
     // const alpha = 0.1; // how aggressively to correct small errors
