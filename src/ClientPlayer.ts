@@ -54,7 +54,7 @@ class ClientPlayer {
 
   private world: World;
 
-  private physicsObject: PhysicsObject;
+  public physicsObject: PhysicsObject;
 
   // Jump control variables
   private grounded: boolean = false;

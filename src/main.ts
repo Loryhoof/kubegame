@@ -212,6 +212,43 @@ const ghostMesh = new THREE.Mesh(
   })
 );
 
+function getVelocityFromInput(
+  keys: any,
+  camQuat: THREE.Quaternion,
+  speedWalk = 4,
+  speedRun = 8
+): THREE.Vector3 {
+  const inputDir = new THREE.Vector3();
+
+  // WASD → input direction
+  if (keys.w) inputDir.z -= 1;
+  if (keys.s) inputDir.z += 1;
+  if (keys.a) inputDir.x -= 1;
+  if (keys.d) inputDir.x += 1;
+
+  // If no input, return zero vector
+  if (inputDir.lengthSq() === 0) return new THREE.Vector3(0, 0, 0);
+
+  // Normalize input so diagonal speed isn't faster
+  inputDir.normalize();
+
+  // Camera yaw only (ignore pitch)
+  const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+  const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    euler.y
+  );
+
+  // Convert to world direction
+  const worldDir = inputDir.applyQuaternion(yawQuat);
+
+  // Speed based on shift
+  const speed = keys.shift ? speedRun : speedWalk;
+
+  // Final velocity (horizontal only)
+  return worldDir.multiplyScalar(speed);
+}
+
 function reconcileLocalPlayer(serverState: NetworkPlayer) {
   if (!localId) return;
   const player = networkPlayers.get(localId);
@@ -260,9 +297,20 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   for (const input of pendingInputs) {
     let remaining = input.dt;
     while (remaining > 0) {
-      const step = Math.min(1 / 60, remaining); // fixed timestep
-      player.predictMovement(step, input.keys, input.camQuat);
-      ClientPhysics.instance.update(); // step physics
+      const step = Math.min(1 / 60, remaining);
+
+      // 1. Apply movement input to rigidbody
+      const rb = player.physicsObject.rigidBody;
+      const moveVel = getVelocityFromInput(input.keys, input.camQuat);
+      rb.setLinvel({ x: moveVel.x, y: rb.linvel().y, z: moveVel.z }, true);
+
+      // 2. Step physics world
+      ClientPhysics.instance.physicsWorld!.step();
+
+      // 3. Sync player dummy to physics body
+      const t = rb.translation();
+      player.setPosition(new THREE.Vector3(t.x, t.y, t.z));
+
       remaining -= step;
     }
   }
