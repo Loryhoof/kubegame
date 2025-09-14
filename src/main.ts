@@ -199,6 +199,16 @@ function registerSocketEvents(world: World) {
 let inputSeq = 0;
 let pendingInputs: any[] = [];
 
+const ghostMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 2, 1),
+  new THREE.MeshStandardMaterial({
+    color: 0xff0000,
+    transparent: true,
+    opacity: 0.5,
+  })
+);
+
+//scene.add(ghostMesh);
 function reconcileLocalPlayer(serverState: NetworkPlayer) {
   if (!localId) return;
   const player = networkPlayers.get(localId);
@@ -222,23 +232,28 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.velocity.z
   );
 
+  ghostMesh.position.copy(serverPos);
+
   // ---- Position Error Check ----
   const error = clientPos.distanceTo(serverPos);
   const POS_THRESHOLD = 0.5; // meters
 
-  if (error > POS_THRESHOLD) {
-    console.log("HARD SNAP");
-    // Hard snap if too far off
-    //rb.setTranslation(serverPos, true);
-    //rb.setLinvel(serverVel, true);
-  } else {
-    // // Soft correction if slightly off
-    // const alpha = 0.1; // how aggressively to correct small errors
-    // const correctedPos = clientPos.lerp(serverPos, alpha);
-    // const correctedVel = clientVel.lerp(serverVel, alpha);
-    // rb.setTranslation(correctedPos, true);
-    // rb.setLinvel(correctedVel, true);
-  }
+  // if (error > POS_THRESHOLD) {
+  //   console.log("HARD SNAP");
+  //   // Hard snap if too far off
+  //   rb.setTranslation(serverPos, true);
+  //   rb.setLinvel(serverVel, true);
+  // } else {
+  //   // // Soft correction if slightly off
+  //   const alpha = 0.99; // how aggressively to correct small errors
+  //   const correctedPos = clientPos.lerp(serverPos, alpha);
+  //   const correctedVel = clientVel.lerp(serverVel, alpha);
+  //   rb.setTranslation(correctedPos, true);
+  //   rb.setLinvel(correctedVel, true);
+  // }
+
+  rb.setTranslation(serverPos, true);
+  rb.setLinvel(serverVel, true);
 
   // ---- Reapply unacknowledged inputs ----
   if (serverState.lastProcessedInputSeq !== undefined) {
