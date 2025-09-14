@@ -34,6 +34,7 @@ export default class ClientPhysics {
     }
     let rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(0, 5, 0)
+      .setCcdEnabled(true)
       .lockRotations(); //kinematicVelocityBased
     let rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
 
