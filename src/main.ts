@@ -232,13 +232,12 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     rb.setTranslation(serverPos, true);
     rb.setLinvel(serverVel, true);
   } else {
-    // Soft correction if slightly off
-    const alpha = 0.1; // how aggressively to correct small errors
-    const correctedPos = clientPos.lerp(serverPos, alpha);
-    const correctedVel = clientVel.lerp(serverVel, alpha);
-
-    rb.setTranslation(correctedPos, true);
-    rb.setLinvel(correctedVel, true);
+    // // Soft correction if slightly off
+    // const alpha = 0.1; // how aggressively to correct small errors
+    // const correctedPos = clientPos.lerp(serverPos, alpha);
+    // const correctedVel = clientVel.lerp(serverVel, alpha);
+    // rb.setTranslation(correctedPos, true);
+    // rb.setLinvel(correctedVel, true);
   }
 
   // ---- Reapply unacknowledged inputs ----
