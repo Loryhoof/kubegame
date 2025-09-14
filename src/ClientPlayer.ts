@@ -257,6 +257,65 @@ class ClientPlayer {
     }
   }
 
+  simulateMovement(
+    position: THREE.Vector3,
+    velocity: THREE.Vector3,
+    dt: number,
+    keys: any,
+    camQuat: THREE.Quaternion
+  ) {
+    // Copy inputs so we don't modify originals
+    const pos = position.clone();
+    const vel = velocity.clone();
+
+    // Movement constants (match server settings!)
+    const GRAVITY = -9.81;
+    const JUMP_IMPULSE = 0.8; // backend impulse
+    const JUMP_FORCE = JUMP_IMPULSE / 1; // if PLAYER_MASS = 1
+    const BASE_SPEED = 4;
+    const WALK_SPEED = BASE_SPEED;
+    const RUN_SPEED = BASE_SPEED * 2;
+    const speed = keys.shift ? RUN_SPEED : WALK_SPEED;
+
+    // ---- INPUT VECTOR ----
+    const inputDir = new THREE.Vector3();
+    if (keys.w) inputDir.z -= 1;
+    if (keys.s) inputDir.z += 1;
+    if (keys.a) inputDir.x -= 1;
+    if (keys.d) inputDir.x += 1;
+
+    const hasInput = inputDir.lengthSq() > 0;
+    if (hasInput) inputDir.normalize();
+
+    // Convert input to world space using camera yaw
+    const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      euler.y
+    );
+    const worldDir = inputDir.applyQuaternion(yawQuat);
+
+    // ---- HORIZONTAL VELOCITY ----
+    const targetVel = hasInput
+      ? worldDir.multiplyScalar(speed)
+      : new THREE.Vector3(0, 0, 0);
+
+    vel.x = targetVel.x;
+    vel.z = targetVel.z;
+
+    // ---- GRAVITY ----
+    vel.y += GRAVITY * dt;
+
+    // ---- POSITION INTEGRATION ----
+    pos.addScaledVector(vel, dt);
+
+    // ---- JUMP CHECK ----
+    // if (keys[" "]) vel.y = JUMP_FORCE; // optional, if you want jump
+
+    // Return the simulated result without touching the real rigidbody
+    return { pos, vel };
+  }
+
   predictMovement(delta: number, keys?: any, quat?: THREE.Quaternion) {
     if (!this.isLocalPlayer) return;
 
