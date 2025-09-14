@@ -254,10 +254,9 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   const player = networkPlayers.get(localId);
   if (!player) return;
 
-  // Update renderable state (hp/coins/whatever) – fine.
   player.setState(serverState as any);
 
-  // Cache authoritative transform from this snapshot
+  // Server snapshot position & velocity
   player.serverPos = new THREE.Vector3(
     serverState.position.x,
     serverState.position.y,
@@ -268,20 +267,12 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.velocity.y,
     serverState.velocity.z
   );
-  player.serverQuat = new THREE.Quaternion(
-    serverState.quaternion.x,
-    serverState.quaternion.y,
-    serverState.quaternion.z,
-    serverState.quaternion.w
-  );
 
-  // Remember what input seq the server was at
-  player.lastServerSeq =
-    serverState.lastProcessedInputSeq ?? player.lastServerSeq ?? -1;
-
-  // Drop inputs the server already simulated
-  if (player.lastServerSeq != null) {
-    pendingInputs = pendingInputs.filter((i) => i.seq > player.lastServerSeq!);
+  // Filter inputs we haven't processed yet
+  if (serverState.lastProcessedInputSeq !== undefined) {
+    pendingInputs = pendingInputs.filter(
+      (input) => input.seq > serverState.lastProcessedInputSeq!
+    );
   }
 }
 
@@ -666,13 +657,6 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
 const FIXED_DT = 1 / 60;
 let accumulator = 0;
 
-// Tunables: start conservative, tweak in-game
-const POS_SOFT_EPS = 0.28; // ignore tiny errors (< ~28cm)
-const POS_SNAP_DIST = 4.0; // snap if we’re >4m off
-const MAX_CORR_SPEED = 10.0; // m/s max correction speed
-const VEL_BLEND = 0.18; // 0..1 per frame blend toward server vel
-const ROT_SNAP_ANGLE = Math.PI * 0.75; // only snap rotation on huge desync
-
 function animate(world: World) {
   stats.begin();
   const delta = clock.getDelta();
@@ -681,120 +665,70 @@ function animate(world: World) {
   const playerObject = networkPlayers.get(localId);
   if (!playerObject) return;
 
-  // 1) Fixed-step local prediction
   accumulator += delta;
-  while (accumulator >= FIXED_DT) {
-    const keys = InputManager.instance.getState();
 
+  while (accumulator >= FIXED_DT) {
+    // --- 1) Collect input & predict instantly ---
+    const keys = InputManager.instance.getState();
     const input = {
       seq: inputSeq++,
       dt: FIXED_DT,
       keys,
       camQuat: camera.quaternion.clone(),
     };
-
     pendingInputs.push(input);
     socket.emit("playerInput", input);
+
+    // Predict immediately for responsiveness
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
-
     accumulator -= FIXED_DT;
-  }
 
-  // 2) One-way, soft reconciliation (once per snapshot)
-  if (playerObject.serverPos && playerObject.lastServerSeq !== undefined) {
-    // Ensure we only apply once per new server seq
-    if (playerObject._lastAppliedServerSeq !== playerObject.lastServerSeq) {
+    // --- 2) Reconcile if we got a server state ---
+    if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
+      const currentPos = new THREE.Vector3().copy(rb.translation());
+      const error = currentPos.distanceTo(playerObject.serverPos);
 
-      const curPos = new THREE.Vector3().copy(rb.translation());
-      const curVel = new THREE.Vector3().copy(rb.linvel());
+      if (error > 5.0) {
+        // Huge desync → snap
+        rb.setTranslation(playerObject.serverPos, true);
+        rb.setLinvel(playerObject.serverVel!, true);
+      } else if (error > 0.2) {
+        // Small desync → correct, then replay pending inputs
+        rb.setTranslation(playerObject.serverPos, true);
+        rb.setLinvel(playerObject.serverVel!, true);
 
-      const srvPos = playerObject.serverPos.clone();
-      const srvVel = (playerObject.serverVel ?? curVel).clone();
-      const posErr = srvPos.clone().sub(curPos);
-      const dist = posErr.length();
-
-      if (dist > POS_SNAP_DIST) {
-        // Huge desync → hard snap (position + velocity + maybe rotation)
-        rb.setTranslation(srvPos, true);
-        rb.setLinvel(srvVel, true);
-
-        // if (playerObject.serverQuat) {
-        //   // Only snap rotation if it’s wildly off (prevents twitch on small diffs)
-        //   const curRot = rb.rotation();
-        //   const curQ = new THREE.Quaternion(
-        //     curRot.x,
-        //     curRot.y,
-        //     curRot.z,
-        //     curRot.w
-        //   );
-        //   const angle =
-        //     2 *
-        //     Math.acos(
-        //       Math.abs(
-        //         THREE.Quaternion.slerp(
-        //           curQ,
-        //           playerObject.serverQuat.clone(),
-        //           0.5
-        //         ).w
-        //       )
-        //     );
-        //   if (angle > ROT_SNAP_ANGLE) {
-        //     rb.setRotation(playerObject.serverQuat, true);
-        //   }
-        // }
-      } else if (dist > POS_SOFT_EPS) {
-        // Soft correct: move toward server at capped speed this frame
-        const maxStep = MAX_CORR_SPEED * delta;
-        if (dist > maxStep) posErr.multiplyScalar(maxStep / dist);
-
-        const newPos = curPos.add(posErr);
-        rb.setTranslation(newPos, true);
-
-        // Gently bias velocity toward server’s without killing steering
-        const blendedVel = curVel.lerp(srvVel, VEL_BLEND);
-        rb.setLinvel(blendedVel, true);
-
-        // (Optional) lightly bias rotation if provided (very small slerp)
-        if (playerObject.serverQuat) {
-          const r = rb.rotation();
-          const q = new THREE.Quaternion(r.x, r.y, r.z, r.w);
-          const qNew = q.slerp(playerObject.serverQuat, 0.08);
-          rb.setRotation(qNew, true);
+        // Replay all unacknowledged inputs since last processed seq
+        for (const pending of pendingInputs) {
+          playerObject.predictMovement(
+            pending.dt,
+            pending.keys,
+            pending.camQuat
+          );
         }
-      } else {
-        // Error tiny → only nudge velocity a touch to converge
-        const blendedVel = curVel.lerp(srvVel, VEL_BLEND * 0.5);
-        rb.setLinvel(blendedVel, true);
       }
 
-      // Mark this snapshot applied & drop acknowledged inputs
-      playerObject._lastAppliedServerSeq = playerObject.lastServerSeq;
-      pendingInputs = pendingInputs.filter(
-        (i) => i.seq > playerObject.lastServerSeq!
-      );
-
-      // Clear snapshot so we don’t re-apply it again
       playerObject.serverPos = null;
       playerObject.serverVel = null;
-      playerObject.serverQuat = null;
     }
   }
 
-  // 3) World update & visuals
+  // --- 3) Update world & visuals ---
   world.update(delta);
   updateCameraFollow();
   interpolatePlayers();
   interpolateVehicles();
   interpolateNPCs();
 
-  networkPlayers.forEach((p: ClientPlayer) => p.update(delta));
+  networkPlayers.forEach((p) => p.update(delta));
 
-  // 4) UI
-  const wantsToInteract = checkPlayerInteractables(playerObject, world);
-  updateUI(playerObject, wantsToInteract);
+  // --- 4) Update UI ---
+  if (playerObject) {
+    const wantsToInteract = checkPlayerInteractables(playerObject, world);
+    updateUI(playerObject, wantsToInteract);
+  }
 
-  // 5) Render
+  // --- 5) Render ---
   renderer.render(scene, camera);
   stats.end();
   inputManager.update();
