@@ -227,13 +227,29 @@ export default class World {
             .get(modelName)
             ?.scene.clone();
 
+          const collider = AssetsManager.instance.colliders.get(modelName);
+          let physicsObject = null;
+
           if (model) {
             model.position.copy(position);
             model.quaternion.copy(quaternion);
-
-            this.entities.push({ id: id, mesh: model });
             this.scene.add(model);
           }
+
+          if (collider) {
+            physicsObject = ClientPhysics.instance.createTrimesh(
+              position,
+              quaternion,
+              collider.vertices,
+              new Uint32Array(collider.indices)
+            );
+          }
+
+          this.entities.push({
+            id: id,
+            mesh: model,
+            physicsObject: physicsObject,
+          });
         }
       });
     }

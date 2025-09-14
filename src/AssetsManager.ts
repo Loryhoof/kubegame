@@ -8,11 +8,20 @@ interface ModelData {
   animations: THREE.AnimationClip[];
 }
 
+interface ColliderData {
+  vertices: Float32Array;
+  indices: Uint16Array;
+}
+
 const glbModels = [
   { key: "boxman", path: "/boxman_2.glb" },
   { key: "car", path: "/car.glb" },
   { key: "ramp", path: "/ramp.glb" },
 ];
+
+const colliderNames = ["ramp"];
+
+const COLLIDERS_PATH = "/colliders";
 
 export class AssetsManager {
   private static _instance: AssetsManager | null = null;
@@ -28,11 +37,29 @@ export class AssetsManager {
 
   public models: Map<string, ModelData> = new Map();
 
-  async loadAll(): Promise<void> {
-    glbModels.forEach(async (model) => {
-      this.models.set(model.key, await this.loadGLTF(model.path));
-    });
+  public colliders: Map<string, ColliderData> = new Map();
 
+  async loadAll(): Promise<void> {
+    // 1. Load all GLTF models in parallel
+    await Promise.all(
+      glbModels.map(async (model) => {
+        this.models.set(model.key, await this.loadGLTF(model.path));
+      })
+    );
+
+    // 2. Load all colliders in parallel
+    await Promise.all(
+      colliderNames.map(async (col) => {
+        const data = await this.loadCollider(`${COLLIDERS_PATH}/${col}.json`);
+        const object = {
+          vertices: new Float32Array(Object.values(data.vertices)),
+          indices: new Uint16Array(Object.values(data.indices)),
+        };
+        this.colliders.set(col, object);
+      })
+    );
+
+    // 3. Load all audio after everything else
     await AudioManager.instance.loadAll();
   }
 
@@ -51,6 +78,12 @@ export class AssetsManager {
         reject
       );
     });
+  }
+
+  private async loadCollider(url: string): Promise<ColliderData> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to load collider: ${url}`);
+    return (await res.json()) as ColliderData;
   }
 
   removeUnusedTracks(gltf: GLTF) {
