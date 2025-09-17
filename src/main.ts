@@ -691,13 +691,22 @@ function animate(world: World) {
       const currentPos = new THREE.Vector3().copy(rb.translation());
       const error = currentPos.distanceTo(playerObject.serverPos);
 
-      //console.log(error);
+      console.log(error);
 
-      //ghostMesh.position.copy(playerObject.serverPos);
+      ghostMesh.position.copy(playerObject.serverPos);
+      ghostMesh.lookAt(
+        playerObject.serverPos
+          .clone()
+          .add(
+            new THREE.Vector3(0, 0, 1).applyQuaternion(
+              playerObject.getQuaternion()
+            )
+          )
+      );
 
-      playerObject.setPosition(playerObject.serverPos);
-      rb.setTranslation(playerObject.serverPos, true);
-      rb.setLinvel(playerObject.serverVel!, true);
+      // playerObject.setPosition(playerObject.serverPos);
+      // rb.setTranslation(playerObject.serverPos, true);
+      // rb.setLinvel(playerObject.serverVel!, true);
 
       for (const pending of pendingInputs) {
         playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
