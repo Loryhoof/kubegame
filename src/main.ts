@@ -710,8 +710,6 @@ function animate(world: World) {
       const errorVec = playerObject.serverPos.clone().sub(clientAtSnapshot);
       const error = errorVec.length();
 
-      console.log(error);
-
       // Debug: ghost shows true server position
       if (DebugState.instance.showGhost) {
         ghostMesh.position.copy(playerObject.serverPos);
@@ -722,7 +720,7 @@ function animate(world: World) {
         // Big error -> snap
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 0.2) {
+      } else if (error > 0.1) {
         // Small drift -> smooth correction
         const correction = currentPos.clone().add(errorVec.multiplyScalar(0.1)); // 10% per tick
         rb.setTranslation(correction, true);
