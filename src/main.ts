@@ -212,6 +212,8 @@ const ghostMesh = new THREE.Mesh(
   })
 );
 
+scene.add(ghostMesh);
+
 function getVelocityFromInput(
   keys: any,
   camQuat: THREE.Quaternion,
@@ -680,7 +682,7 @@ function animate(world: World) {
     socket.emit("playerInput", input);
 
     // Predict immediately for responsiveness
-    playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
+    // playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
     // --- 2) Reconcile if we got a server state ---
@@ -689,7 +691,18 @@ function animate(world: World) {
       const currentPos = new THREE.Vector3().copy(rb.translation());
       const error = currentPos.distanceTo(playerObject.serverPos);
 
-      console.log(error);
+      //console.log(error);
+
+      ghostMesh.position.copy(playerObject.serverPos);
+
+      playerObject.setPosition(playerObject.serverPos);
+      rb.setTranslation(playerObject.serverPos, true);
+      rb.setLinvel(playerObject.serverVel!, true);
+
+      for (const pending of pendingInputs) {
+        playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
+      }
+
       // if (error >= 1.0) {
       //   // Huge desync → snap
       //   rb.setTranslation(playerObject.serverPos, true);
