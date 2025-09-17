@@ -722,7 +722,7 @@ function animate(world: World) {
         // Big error -> snap
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 0.1) {
+      } else if (error > 0.2) {
         // Small drift -> smooth correction
         const correction = currentPos.clone().add(errorVec.multiplyScalar(0.1)); // 10% per tick
         rb.setTranslation(correction, true);
