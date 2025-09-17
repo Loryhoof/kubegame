@@ -699,31 +699,58 @@ function animate(world: World) {
       const snapshotAge =
         (now + serverTimeOffsetMs - playerObject.lastServerTime) / 1000;
 
-      // Rewind client to snapshot time
+      // Client position at the snapshot time (rewind using local velocity)
       const vel = rb.linvel();
       const localVelocity = new THREE.Vector3(vel.x, vel.y, vel.z);
       const clientAtSnapshot = currentPos
         .clone()
         .sub(localVelocity.clone().multiplyScalar(snapshotAge));
 
-      // Error at *same point in time*
+      // Error at the *same point in time*
       const errorVec = playerObject.serverPos.clone().sub(clientAtSnapshot);
       const error = errorVec.length();
 
-      // Debug: ghost shows true server position
+      // Show ghost for debugging
       if (DebugState.instance.showGhost) {
         ghostMesh.position.copy(playerObject.serverPos);
       }
 
-      // Correction logic
+      // -------------------------------
+      // Adaptive correction parameters
+      // -------------------------------
+
+      // Dead-zone grows with ping so small latency errors are ignored
+      const deadZone = 0.05 + ping * 0.002; // 0.05 at 0ms → 0.45 at 200ms
+
+      // Correction factor shrinks with ping so movement feels smooth
+      const baseFactor = 0.1; // fast correction at low ping
+      const factor = Math.max(0.02, baseFactor * (50 / Math.max(ping, 50)));
+
+      // Max correction distance per frame
+      const maxCorrection = 0.5; // meters per frame max
+
+      // Are we moving? If so, correct more gently
+      const isMoving = localVelocity.length() > 0.1;
+      const moveFactor = isMoving ? factor * 0.5 : factor; // Half speed while moving
+
+      // -------------------------------
+      // Apply correction
+      // -------------------------------
+
       if (error > 5.0) {
-        // Big error -> snap
+        // Big error → snap
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 0.1) {
-        // Small drift -> smooth correction
-        const correction = currentPos.clone().add(errorVec.multiplyScalar(0.1)); // 10% per tick
-        rb.setTranslation(correction, true);
+      } else if (error > deadZone) {
+        // Smooth correction with limits
+        const frameCorrection = errorVec.clone().multiplyScalar(moveFactor);
+
+        // Cap correction distance to avoid huge jumps
+        if (frameCorrection.length() > maxCorrection) {
+          frameCorrection.setLength(maxCorrection);
+        }
+
+        rb.setTranslation(currentPos.clone().add(frameCorrection), true);
       }
 
       // Replay unprocessed inputs after correction
