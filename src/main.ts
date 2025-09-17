@@ -674,7 +674,7 @@ function animate(world: World) {
   accumulator += delta;
 
   while (accumulator >= FIXED_DT) {
-    // --- 1) Collect input & predict instantly ---
+    // 1) Collect input & predict instantly
     const keys = InputManager.instance.getState();
     const input = {
       seq: inputSeq++,
@@ -689,7 +689,7 @@ function animate(world: World) {
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
-    // --- 2) Reconciliation ---
+    // 2) Reconciliation with adaptive correction
     if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
@@ -699,58 +699,44 @@ function animate(world: World) {
       const snapshotAge =
         (now + serverTimeOffsetMs - playerObject.lastServerTime) / 1000;
 
-      // Client position at the snapshot time (rewind using local velocity)
+      // Rewind client to snapshot time
       const vel = rb.linvel();
       const localVelocity = new THREE.Vector3(vel.x, vel.y, vel.z);
       const clientAtSnapshot = currentPos
         .clone()
         .sub(localVelocity.clone().multiplyScalar(snapshotAge));
 
-      // Error at the *same point in time*
+      // Error at same point in time
       const errorVec = playerObject.serverPos.clone().sub(clientAtSnapshot);
       const error = errorVec.length();
 
-      // Show ghost for debugging
+      // Debug: ghost shows true server position
       if (DebugState.instance.showGhost) {
         ghostMesh.position.copy(playerObject.serverPos);
       }
 
-      // -------------------------------
-      // Adaptive correction parameters
-      // -------------------------------
+      // Correction parameters
+      const deadZone = 0.05 + ping * 0.002; // ignore tiny drift at high ping
+      const bigError = 2.0; // snap if error > 2m
+      const baseFactor = 0.1; // normal correction speed
+      const correctionFactor = Math.max(
+        0.02,
+        baseFactor * (100 / Math.max(ping, 100))
+      ); // slower if ping high
+      const errorFactor = Math.min(1.0, error / bigError);
+      const finalFactor = correctionFactor * (0.5 + 0.5 * errorFactor);
 
-      // Dead-zone grows with ping so small latency errors are ignored
-      const deadZone = 0.05 + ping * 0.002; // 0.05 at 0ms → 0.45 at 200ms
-
-      // Correction factor shrinks with ping so movement feels smooth
-      const baseFactor = 0.1; // fast correction at low ping
-      const factor = Math.max(0.02, baseFactor * (50 / Math.max(ping, 50)));
-
-      // Max correction distance per frame
-      const maxCorrection = 0.5; // meters per frame max
-
-      // Are we moving? If so, correct more gently
-      const isMoving = localVelocity.length() > 0.1;
-      const moveFactor = isMoving ? factor * 0.5 : factor; // Half speed while moving
-
-      // -------------------------------
-      // Apply correction
-      // -------------------------------
-
-      if (error > 5.0) {
-        // Big error → snap
+      // Correction logic
+      if (error > bigError) {
+        // Big error -> snap instantly
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
       } else if (error > deadZone) {
-        // Smooth correction with limits
-        const frameCorrection = errorVec.clone().multiplyScalar(moveFactor);
-
-        // Cap correction distance to avoid huge jumps
-        if (frameCorrection.length() > maxCorrection) {
-          frameCorrection.setLength(maxCorrection);
-        }
-
-        rb.setTranslation(currentPos.clone().add(frameCorrection), true);
+        // Small drift -> smooth correction
+        const correction = currentPos
+          .clone()
+          .add(errorVec.multiplyScalar(finalFactor));
+        rb.setTranslation(correction, true);
       }
 
       // Replay unprocessed inputs after correction
@@ -764,7 +750,7 @@ function animate(world: World) {
     }
   }
 
-  // --- 3) Update world & visuals ---
+  // 3) Update world & visuals
   world.update(delta);
   updateCameraFollow();
   interpolatePlayers();
@@ -773,7 +759,7 @@ function animate(world: World) {
 
   networkPlayers.forEach((p) => p.update(delta));
 
-  // --- 4) Update UI ---
+  // 4) Update UI
   if (playerObject) {
     const wantsToInteract = checkPlayerInteractables(playerObject, world);
     updateUI(playerObject, wantsToInteract);
@@ -781,7 +767,7 @@ function animate(world: World) {
 
   ghostMesh.visible = DebugState.instance.showGhost;
 
-  // --- 5) Render ---
+  // 5) Render
   renderer.render(scene, camera);
   stats.end();
   inputManager.update();
