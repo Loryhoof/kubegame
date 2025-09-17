@@ -58,6 +58,7 @@ class ClientPlayer {
 
   public serverPos: THREE.Vector3 | null = null;
   public serverVel: THREE.Vector3 | null = null;
+  public lastServerTime: number = 0;
 
   // Jump control variables
   private grounded: boolean = false;

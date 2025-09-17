@@ -270,6 +270,8 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
     serverState.velocity.z
   );
 
+  player.lastServerTime = Date.now();
+
   // Filter inputs we haven't processed yet
   if (serverState.lastProcessedInputSeq !== undefined) {
     pendingInputs = pendingInputs.filter(
@@ -687,44 +689,36 @@ function animate(world: World) {
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
-    // --- 2) Reconcile if we got a server state ---
-    if (playerObject.serverPos) {
-      const predictedServerPos = playerObject.serverPos
-        .clone()
-        .add(playerObject.serverVel!.clone().multiplyScalar(latency));
-
+    if (playerObject.serverPos && playerObject.serverVel) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
-      const error = currentPos.distanceTo(playerObject.serverPos);
-      const realError = currentPos.distanceTo(predictedServerPos);
 
-      console.log(error, realError);
+      // How old is this snapshot in seconds?
+      const snapshotTime = playerObject.lastServerTime || Date.now();
+      const snapshotAgeSec = (Date.now() - snapshotTime) / 1000;
 
-      ghostMesh.position.copy(predictedServerPos);
-      ghostMesh.lookAt(
-        predictedServerPos
-          .clone()
-          .add(
-            new THREE.Vector3(0, 0, 1).applyQuaternion(
-              playerObject.getQuaternion()
-            )
-          )
-      );
+      // Rewind client to snapshot time: pos - vel * age
+      const predictedAtSnapshot = currentPos
+        .clone()
+        .sub(playerObject.serverVel.clone().multiplyScalar(snapshotAgeSec));
 
-      // playerObject.setPosition(playerObject.serverPos);
-      // rb.setTranslation(playerObject.serverPos, true);
-      // rb.setLinvel(playerObject.serverVel!, true);
+      // Compare *rewound* client position to server position
+      const realError = predictedAtSnapshot.distanceTo(playerObject.serverPos);
 
+      console.log("Real error:", realError.toFixed(3));
+
+      // Show ghost at server snapshot position for debugging
+      ghostMesh.position.copy(playerObject.serverPos);
+
+      // Replay unacknowledged inputs if needed
       for (const pending of pendingInputs) {
         playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
       }
 
-      // if (error >= 1.0) {
-      //   // Huge desync → snap
-      //   rb.setTranslation(playerObject.serverPos, true);
-      //   rb.setLinvel(playerObject.serverVel!, true);
-      // }
+      playerObject.serverPos = null;
+      playerObject.serverVel = null;
     }
+
     // } else if (error > 0.2) {
     //   // Small desync → correct, then replay pending inputs
     //   rb.setTranslation(playerObject.serverPos, true);
