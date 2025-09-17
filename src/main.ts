@@ -692,32 +692,39 @@ function animate(world: World) {
     if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
-      const errorVec = playerObject.serverPos.clone().sub(currentPos);
+
+      // Predict where the server thinks you should be *now*
+      const now = Date.now();
+      const snapshotAge =
+        (now + serverTimeOffsetMs - playerObject.lastServerTime) / 1000;
+      const alignedServerPos = playerObject.serverPos
+        .clone()
+        .add(playerObject.serverVel!.clone().multiplyScalar(snapshotAge));
+
+      const errorVec = alignedServerPos.clone().sub(currentPos);
       const error = errorVec.length();
 
       console.log(error);
 
-      // 1) If huge → snap instantly
+      // Big error → snap
       if (error > 5.0) {
-        rb.setTranslation(playerObject.serverPos, true);
+        rb.setTranslation(alignedServerPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
       }
-      // 2) If small but standing still → gradually nudge toward server
+      // Small error → only correct if standing still
       else if (error > 0.05) {
         const vel = rb.linvel();
         const isMoving = new THREE.Vector3(vel.x, vel.y, vel.z).length() > 0.1;
-
         if (!isMoving) {
-          // Lerp toward server position when stationary
-          const correction = currentPos.lerp(playerObject.serverPos, 0.1); // 0.1 = smoothing factor
+          const correction = currentPos.lerp(alignedServerPos, 0.1);
           rb.setTranslation(correction, true);
         }
       }
 
       if (DebugState.instance.showGhost) {
-        ghostMesh.position.copy(playerObject.serverPos);
+        ghostMesh.position.copy(alignedServerPos);
         ghostMesh.lookAt(
-          playerObject.serverPos
+          alignedServerPos
             .clone()
             .add(
               new THREE.Vector3(0, 0, 1).applyQuaternion(
