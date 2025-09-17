@@ -2,6 +2,7 @@ export default class DebugState {
   private static _instance: DebugState | null = null;
 
   public reconciliation: boolean = true;
+  public showGhost: boolean = false;
 
   public static get instance(): DebugState {
     if (!this._instance) {

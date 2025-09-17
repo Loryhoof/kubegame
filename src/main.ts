@@ -692,25 +692,40 @@ function animate(world: World) {
     if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
+      const errorVec = playerObject.serverPos.clone().sub(currentPos);
+      const error = errorVec.length();
 
-      const error = currentPos.distanceTo(playerObject.serverPos);
       console.log(error);
 
+      // 1) If huge → snap instantly
       if (error > 5.0) {
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
       }
+      // 2) If small but standing still → gradually nudge toward server
+      else if (error > 0.05) {
+        const vel = rb.linvel();
+        const isMoving = new THREE.Vector3(vel.x, vel.y, vel.z).length() > 0.1;
 
-      ghostMesh.position.copy(playerObject.serverPos);
-      ghostMesh.lookAt(
-        playerObject.serverPos
-          .clone()
-          .add(
-            new THREE.Vector3(0, 0, 1).applyQuaternion(
-              playerObject.getQuaternion()
+        if (!isMoving) {
+          // Lerp toward server position when stationary
+          const correction = currentPos.lerp(playerObject.serverPos, 0.1); // 0.1 = smoothing factor
+          rb.setTranslation(correction, true);
+        }
+      }
+
+      if (DebugState.instance.showGhost) {
+        ghostMesh.position.copy(playerObject.serverPos);
+        ghostMesh.lookAt(
+          playerObject.serverPos
+            .clone()
+            .add(
+              new THREE.Vector3(0, 0, 1).applyQuaternion(
+                playerObject.getQuaternion()
+              )
             )
-          )
-      );
+        );
+      }
 
       for (const pending of pendingInputs) {
         playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
@@ -754,6 +769,8 @@ function animate(world: World) {
     const wantsToInteract = checkPlayerInteractables(playerObject, world);
     updateUI(playerObject, wantsToInteract);
   }
+
+  ghostMesh.visible = DebugState.instance.showGhost;
 
   // --- 5) Render ---
   renderer.render(scene, camera);

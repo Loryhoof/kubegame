@@ -40,6 +40,22 @@ export default function Chat() {
         }
       },
     },
+    ghost: {
+      description: "Enable or disable ghost",
+      usage: "/ghost true|false",
+      execute: (args) => {
+        const value = args[0]?.toLowerCase();
+        if (value === "true") {
+          DebugState.instance.showGhost = true;
+          addSystemMessage("ghost enabled");
+        } else if (value === "false") {
+          DebugState.instance.showGhost = false;
+          addSystemMessage("ghost disabled");
+        } else {
+          addSystemMessage("Usage: " + commands.recon.usage);
+        }
+      },
+    },
     help: {
       description: "List all commands",
       usage: "/help",
