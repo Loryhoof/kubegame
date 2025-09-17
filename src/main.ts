@@ -712,14 +712,14 @@ function animate(world: World) {
         rb.setLinvel(playerObject.serverVel!, true);
       }
       // Small error → only correct if standing still
-      else if (error > 0.05) {
-        const vel = rb.linvel();
-        const isMoving = new THREE.Vector3(vel.x, vel.y, vel.z).length() > 0.1;
-        if (!isMoving) {
-          const correction = currentPos.lerp(alignedServerPos, 0.1);
-          rb.setTranslation(correction, true);
-        }
-      }
+      // else if (error > 0.05) {
+      //   const vel = rb.linvel();
+      //   const isMoving = new THREE.Vector3(vel.x, vel.y, vel.z).length() > 0.1;
+      //   if (!isMoving) {
+      //     const correction = currentPos.lerp(alignedServerPos, 0.1);
+      //     rb.setTranslation(correction, true);
+      //   }
+      // }
 
       if (DebugState.instance.showGhost) {
         ghostMesh.position.copy(alignedServerPos);
