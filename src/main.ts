@@ -689,75 +689,54 @@ function animate(world: World) {
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
+    // --- 2) Reconciliation ---
     if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
 
-      // Time-align server snapshot forward
+      // How old is the snapshot?
       const now = Date.now();
       const snapshotAge =
         (now + serverTimeOffsetMs - playerObject.lastServerTime) / 1000;
-      const alignedServerPos = playerObject.serverPos
-        .clone()
-        .add(playerObject.serverVel!.clone().multiplyScalar(snapshotAge));
 
-      const errorVec = alignedServerPos.clone().sub(currentPos);
+      // Rewind client to snapshot time
+      const vel = rb.linvel();
+      const localVelocity = new THREE.Vector3(vel.x, vel.y, vel.z);
+      const clientAtSnapshot = currentPos
+        .clone()
+        .sub(localVelocity.clone().multiplyScalar(snapshotAge));
+
+      // Error at *same point in time*
+      const errorVec = playerObject.serverPos.clone().sub(clientAtSnapshot);
       const error = errorVec.length();
 
       console.log(error);
 
-      // Snap if huge (teleport)
-      if (error > 5.0) {
-        rb.setTranslation(alignedServerPos, true);
-        rb.setLinvel(playerObject.serverVel!, true);
+      // Debug: ghost shows true server position
+      if (DebugState.instance.showGhost) {
+        ghostMesh.position.copy(playerObject.serverPos);
       }
-      // Otherwise: correct gradually while moving too
-      else if (error > 0.05) {
+
+      // Correction logic
+      if (error > 5.0) {
+        // Big error -> snap
+        rb.setTranslation(playerObject.serverPos, true);
+        rb.setLinvel(playerObject.serverVel!, true);
+      } else if (error > 0.1) {
+        // Small drift -> smooth correction
         const correction = currentPos.clone().add(errorVec.multiplyScalar(0.1)); // 10% per tick
         rb.setTranslation(correction, true);
       }
 
-      // Debug ghost mesh
-      if (DebugState.instance.showGhost) {
-        ghostMesh.position.copy(alignedServerPos);
-        ghostMesh.lookAt(
-          alignedServerPos
-            .clone()
-            .add(
-              new THREE.Vector3(0, 0, 1).applyQuaternion(
-                playerObject.getQuaternion()
-              )
-            )
-        );
-      }
-
-      // Replay unacknowledged inputs
+      // Replay unprocessed inputs after correction
       for (const pending of pendingInputs) {
         playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
       }
 
+      // Clear snapshot
       playerObject.serverPos = null;
       playerObject.serverVel = null;
     }
-
-    // } else if (error > 0.2) {
-    //   // Small desync → correct, then replay pending inputs
-    //   rb.setTranslation(playerObject.serverPos, true);
-    //   rb.setLinvel(playerObject.serverVel!, true);
-
-    //   // Replay all unacknowledged inputs since last processed seq
-    //   for (const pending of pendingInputs) {
-    //     playerObject.predictMovement(
-    //       pending.dt,
-    //       pending.keys,
-    //       pending.camQuat
-    //     );
-    //   }
-    // }
-
-    playerObject.serverPos = null;
-    playerObject.serverVel = null;
-    // }
   }
 
   // --- 3) Update world & visuals ---
