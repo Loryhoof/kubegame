@@ -689,28 +689,29 @@ function animate(world: World) {
     playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
-    if (playerObject.serverPos && playerObject.serverVel) {
+    if (playerObject.serverPos) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
 
-      // How old is this snapshot in seconds?
-      const snapshotTime = playerObject.lastServerTime || Date.now();
-      const snapshotAgeSec = (Date.now() - snapshotTime) / 1000;
+      const error = currentPos.distanceTo(playerObject.serverPos);
+      console.log(error);
 
-      // Rewind client to snapshot time: pos - vel * age
-      const predictedAtSnapshot = currentPos
-        .clone()
-        .sub(playerObject.serverVel.clone().multiplyScalar(snapshotAgeSec));
+      if (error > 5.0) {
+        rb.setTranslation(playerObject.serverPos, true);
+        rb.setLinvel(playerObject.serverVel!, true);
+      }
 
-      // Compare *rewound* client position to server position
-      const realError = predictedAtSnapshot.distanceTo(playerObject.serverPos);
-
-      console.log("Real error:", realError.toFixed(3));
-
-      // Show ghost at server snapshot position for debugging
       ghostMesh.position.copy(playerObject.serverPos);
+      ghostMesh.lookAt(
+        playerObject.serverPos
+          .clone()
+          .add(
+            new THREE.Vector3(0, 0, 1).applyQuaternion(
+              playerObject.getQuaternion()
+            )
+          )
+      );
 
-      // Replay unacknowledged inputs if needed
       for (const pending of pendingInputs) {
         playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
       }
