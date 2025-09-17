@@ -693,7 +693,7 @@ function animate(world: World) {
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
 
-      // Predict where the server thinks you should be *now*
+      // Time-align server snapshot forward
       const now = Date.now();
       const snapshotAge =
         (now + serverTimeOffsetMs - playerObject.lastServerTime) / 1000;
@@ -706,21 +706,18 @@ function animate(world: World) {
 
       console.log(error);
 
-      // Big error → snap
+      // Snap if huge (teleport)
       if (error > 5.0) {
         rb.setTranslation(alignedServerPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
       }
-      // Small error → only correct if standing still
-      // else if (error > 0.05) {
-      //   const vel = rb.linvel();
-      //   const isMoving = new THREE.Vector3(vel.x, vel.y, vel.z).length() > 0.1;
-      //   if (!isMoving) {
-      //     const correction = currentPos.lerp(alignedServerPos, 0.1);
-      //     rb.setTranslation(correction, true);
-      //   }
-      // }
+      // Otherwise: correct gradually while moving too
+      else if (error > 0.05) {
+        const correction = currentPos.clone().add(errorVec.multiplyScalar(0.1)); // 10% per tick
+        rb.setTranslation(correction, true);
+      }
 
+      // Debug ghost mesh
       if (DebugState.instance.showGhost) {
         ghostMesh.position.copy(alignedServerPos);
         ghostMesh.lookAt(
@@ -734,6 +731,7 @@ function animate(world: World) {
         );
       }
 
+      // Replay unacknowledged inputs
       for (const pending of pendingInputs) {
         playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
       }
