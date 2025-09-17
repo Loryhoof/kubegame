@@ -690,11 +690,11 @@ function animate(world: World) {
       const error = currentPos.distanceTo(playerObject.serverPos);
 
       console.log(error);
-      if (error >= 1.0) {
-        // Huge desync → snap
-        rb.setTranslation(playerObject.serverPos, true);
-        rb.setLinvel(playerObject.serverVel!, true);
-      }
+      // if (error >= 1.0) {
+      //   // Huge desync → snap
+      //   rb.setTranslation(playerObject.serverPos, true);
+      //   rb.setLinvel(playerObject.serverVel!, true);
+      // }
     }
     // } else if (error > 0.2) {
     //   // Small desync → correct, then replay pending inputs
