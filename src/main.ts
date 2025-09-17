@@ -659,6 +659,8 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
 const FIXED_DT = 1 / 60;
 let accumulator = 0;
 
+const latency = ((ping > 0 ? ping : 1) * 0.5) / 1000; // seconds
+
 function animate(world: World) {
   stats.begin();
   const delta = clock.getDelta();
@@ -687,15 +689,20 @@ function animate(world: World) {
 
     // --- 2) Reconcile if we got a server state ---
     if (playerObject.serverPos) {
+      const predictedServerPos = playerObject.serverPos
+        .clone()
+        .add(playerObject.serverVel!.clone().multiplyScalar(latency));
+
       const rb = playerObject["physicsObject"].rigidBody;
       const currentPos = new THREE.Vector3().copy(rb.translation());
       const error = currentPos.distanceTo(playerObject.serverPos);
+      const realError = currentPos.distanceTo(predictedServerPos);
 
-      console.log(error);
+      console.log(error, realError);
 
-      ghostMesh.position.copy(playerObject.serverPos);
+      ghostMesh.position.copy(predictedServerPos);
       ghostMesh.lookAt(
-        playerObject.serverPos
+        predictedServerPos
           .clone()
           .add(
             new THREE.Vector3(0, 0, 1).applyQuaternion(
