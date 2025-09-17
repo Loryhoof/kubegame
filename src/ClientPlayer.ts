@@ -619,6 +619,63 @@ class ClientPlayer {
   //   }
   // }
 
+  setRemoteState(state: StateData) {
+    const {
+      position,
+      quaternion,
+      color,
+      health,
+      coins,
+      velocity,
+      keys,
+      isSitting,
+      controlledObject,
+    } = state;
+
+    this.coins = coins;
+    this.color = color;
+    this.velocity.copy(velocity);
+    this.health = health;
+    this.dummy.position.copy(position);
+    // this.keys = keys;
+    this.isSitting = isSitting;
+
+    this.controlledObject = controlledObject;
+
+    // Smooth rotation
+    this.dummy.quaternion.slerp(
+      new THREE.Quaternion(
+        quaternion.x,
+        quaternion.y,
+        quaternion.z,
+        quaternion.w
+      ),
+      0.25
+    );
+
+    // Initial material setup
+    if (!this.hasInit) {
+      this.model.traverse((item: any) => {
+        if (item instanceof THREE.SkinnedMesh) {
+          if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
+            item.material = new THREE.MeshStandardMaterial({ color });
+          }
+          if (["Leg_R", "Leg_L"].includes(item.name)) {
+            item.material = new THREE.MeshStandardMaterial({
+              color: pantColor,
+            });
+          }
+          if (item.name === "Head") {
+            item.material = new THREE.MeshStandardMaterial({
+              color: skinColor,
+            });
+          }
+        }
+      });
+      this.hasInit = true;
+    }
+  }
+
   setState(state: StateData) {
     const {
       position,

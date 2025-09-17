@@ -113,6 +113,19 @@ function registerSocketEvents(world: World) {
   });
 
   socket.on("initWorld", (data: any) => {
+    const { players } = data;
+
+    if (players) {
+      for (const [id, value] of Object.entries(players)) {
+        const player = networkPlayers.get(id);
+
+        if (player) continue;
+
+        const newPlayer = new ClientPlayer(world, id, "0xffffff", scene);
+        networkPlayers.set(id, newPlayer);
+      }
+    }
+
     world.initWorldData(data);
   });
 
@@ -318,9 +331,13 @@ function interpolatePlayers() {
       if (id === localId) continue; // skip local, reconciliation handles it
 
       // if (!netPlayer) {
-      //   netPlayer = new ClientPlayer(world, id, pOld.color, scene);
+      //   netPlayer = new ClientPlayer(world!, id, pOld.color, scene);
       //   networkPlayers.set(id, netPlayer);
+
+      //   console.log("Creating player");
       // }
+
+      if (!netPlayer) continue;
 
       const posOld = new THREE.Vector3(
         pOld.position.x,
@@ -360,7 +377,7 @@ function interpolatePlayers() {
       );
       const targetVel = velOld.lerp(velNew, t);
 
-      netPlayer?.setState({
+      netPlayer?.setRemoteState({
         position: targetPos,
         quaternion: targetQuat,
         color: pNew.color,
