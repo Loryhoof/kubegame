@@ -689,28 +689,31 @@ function animate(world: World) {
       const currentPos = new THREE.Vector3().copy(rb.translation());
       const error = currentPos.distanceTo(playerObject.serverPos);
 
-      if (error > 5.0) {
+      console.log(error);
+      if (error >= 1.0) {
         // Huge desync → snap
         rb.setTranslation(playerObject.serverPos, true);
         rb.setLinvel(playerObject.serverVel!, true);
-      } else if (error > 0.2) {
-        // Small desync → correct, then replay pending inputs
-        rb.setTranslation(playerObject.serverPos, true);
-        rb.setLinvel(playerObject.serverVel!, true);
-
-        // Replay all unacknowledged inputs since last processed seq
-        for (const pending of pendingInputs) {
-          playerObject.predictMovement(
-            pending.dt,
-            pending.keys,
-            pending.camQuat
-          );
-        }
       }
-
-      playerObject.serverPos = null;
-      playerObject.serverVel = null;
     }
+    // } else if (error > 0.2) {
+    //   // Small desync → correct, then replay pending inputs
+    //   rb.setTranslation(playerObject.serverPos, true);
+    //   rb.setLinvel(playerObject.serverVel!, true);
+
+    //   // Replay all unacknowledged inputs since last processed seq
+    //   for (const pending of pendingInputs) {
+    //     playerObject.predictMovement(
+    //       pending.dt,
+    //       pending.keys,
+    //       pending.camQuat
+    //     );
+    //   }
+    // }
+
+    playerObject.serverPos = null;
+    playerObject.serverVel = null;
+    // }
   }
 
   // --- 3) Update world & visuals ---
