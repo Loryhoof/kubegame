@@ -682,7 +682,7 @@ function animate(world: World) {
     socket.emit("playerInput", input);
 
     // Predict immediately for responsiveness
-    // playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
+    playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
     accumulator -= FIXED_DT;
 
     // --- 2) Reconcile if we got a server state ---
@@ -693,7 +693,7 @@ function animate(world: World) {
 
       //console.log(error);
 
-      ghostMesh.position.copy(playerObject.serverPos);
+      //ghostMesh.position.copy(playerObject.serverPos);
 
       playerObject.setPosition(playerObject.serverPos);
       rb.setTranslation(playerObject.serverPos, true);
