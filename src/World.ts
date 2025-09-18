@@ -283,8 +283,9 @@ export default class World {
     }
 
     if (vehicles) {
-      vehicles.forEach((vehicle: ClientVehicle) => {
-        let { id, position, quaternion, visualWheels, seats } = vehicle;
+      console.log(vehicles, "VEHICLES ON INIT");
+      vehicles.forEach((vehicle: any) => {
+        let { id, position, quaternion, wheels, seats } = vehicle;
 
         if (seats) {
           seats = seats.map((seat: any) => ({
@@ -297,7 +298,7 @@ export default class World {
           id,
           position,
           quaternion,
-          visualWheels,
+          wheels,
           seats,
           false
         );
