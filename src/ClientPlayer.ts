@@ -35,7 +35,7 @@ class ClientPlayer {
   public readonly mixer: THREE.AnimationMixer;
   public dummy: THREE.Object3D = new THREE.Object3D();
   private hasInit: boolean = false;
-  private keys: Record<string, boolean> = {};
+  public keys: Record<string, boolean> = {};
 
   public boundingBox: THREE.Box3;
   public readonly animations: Map<string, THREE.AnimationAction>;
@@ -177,6 +177,12 @@ class ClientPlayer {
 
     this.physicsObject = ClientPhysics.instance.createPlayerCapsule();
     console.log(this.physicsObject, "physicskb");
+  }
+
+  getKeys() {
+    if (!this.isLocalPlayer) return null;
+
+    return InputManager.instance.getState();
   }
 
   setPosition(position: THREE.Vector3) {

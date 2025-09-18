@@ -3,6 +3,7 @@ import { io, Socket } from "socket.io-client";
 export default class NetworkManager {
   private static _instance: NetworkManager | null = null;
   private socket: Socket;
+  public localId: string | null = null;
 
   private constructor() {
     this.socket = io((import.meta as any).env.VITE_SOCKET_URL);

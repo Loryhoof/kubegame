@@ -1,6 +1,11 @@
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import { Quaternion, Vector3 } from "three";
 
+let ray = new RAPIER.Ray(
+  new RAPIER.Vector3(0, 0, 0),
+  new RAPIER.Vector3(0, 0, 0)
+);
+
 export interface PhysicsObject {
   rigidBody: RAPIER.RigidBody;
   collider: RAPIER.Collider;
@@ -122,6 +127,47 @@ export default class ClientPhysics {
     const collider = this.physicsWorld!.createCollider(colDesc, rigidBody);
 
     return { rigidBody, collider };
+  }
+
+  createCar(position: Vector3): PhysicsObject {
+    let rbDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(position.x, position.y, position.z)
+      .setAdditionalMass(1500);
+    let rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
+
+    let boxColDesc = RAPIER.ColliderDesc.cuboid(1, 0.25, 2);
+    let collider = this.physicsWorld!.createCollider(boxColDesc, rigidBody);
+
+    return { rigidBody, collider };
+  }
+
+  setTranslation(physicsObject: PhysicsObject, vec: Vector3) {
+    physicsObject.rigidBody.setTranslation(vec, true);
+  }
+
+  raycastFull(origin: Vector3, dir: Vector3, rb: any, toi: number = 4) {
+    ray.origin = origin;
+    ray.dir = dir;
+
+    let maxToi = toi;
+    let solid = false;
+
+    let hit = this.physicsWorld!.castRay(
+      ray,
+      maxToi,
+      solid,
+      undefined,
+      undefined,
+      undefined,
+      rb
+    );
+
+    return { ray, hit };
+  }
+
+  remove(physicsObject: PhysicsObject) {
+    this.physicsWorld!.removeRigidBody(physicsObject.rigidBody);
+    this.physicsWorld!.removeCollider(physicsObject.collider, true);
   }
 
   update() {

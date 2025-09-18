@@ -1,11 +1,12 @@
 import * as THREE from "three";
 import Interactable from "./Interactable";
 import { AssetsManager } from "./AssetsManager";
-import ClientVehicle, { Wheel } from "./ClientVehicle";
+import ClientVehicle, { VisualWheel } from "./ClientVehicle";
 import { getRandomFromArray } from "./utils";
 import NetworkManager from "./NetworkManager";
 import ClientNPC from "./ClientNPC";
 import ClientPhysics from "./ClientPhysics";
+import ClientPlayer from "./ClientPlayer";
 
 const loader = new THREE.TextureLoader();
 
@@ -29,6 +30,7 @@ export default class World {
   public interactables: any[] = [];
   public vehicles: ClientVehicle[] = [];
   public npcs: any[] = [];
+  public players: Map<string, ClientPlayer> = new Map();
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -282,13 +284,22 @@ export default class World {
 
     if (vehicles) {
       vehicles.forEach((vehicle: ClientVehicle) => {
-        const { id, position, quaternion, wheels } = vehicle;
+        let { id, position, quaternion, visualWheels, seats } = vehicle;
+
+        if (seats) {
+          seats = seats.map((seat: any) => ({
+            ...seat,
+            seater: seat.seater ? this.getPlayerById(seat.seater) : null,
+          }));
+        }
 
         const clientVehicle = new ClientVehicle(
           id,
           position,
           quaternion,
-          wheels
+          visualWheels,
+          seats,
+          false
         );
 
         this.vehicles.push(clientVehicle);
@@ -556,12 +567,45 @@ export default class World {
   }
 
   addVehicle(data: any) {
-    const { id, position, quaternion, wheels } = data;
+    const { id, position, quaternion, wheels, seats } = data;
 
-    const clientVehicle = new ClientVehicle(id, position, quaternion, wheels);
+    // Determine if this car belongs to the local player
+    const isLocal = seats[0]?.seater === NetworkManager.instance.localId;
+
+    const clientVehicle = new ClientVehicle(
+      id,
+      new THREE.Vector3(position.x, position.y, position.z),
+      new THREE.Quaternion(
+        quaternion.x,
+        quaternion.y,
+        quaternion.z,
+        quaternion.w
+      ),
+      wheels,
+      seats,
+      isLocal // pass the flag here
+    );
 
     this.vehicles.push(clientVehicle);
     this.scene.add(clientVehicle.mesh);
+  }
+
+  addPlayer(player: ClientPlayer) {
+    this.players.set(player.networkId, player);
+  }
+
+  removePlayer(key: string) {
+    const player = this.players.get(key);
+
+    if (!player) return;
+
+    player.remove();
+
+    this.players.delete(key);
+  }
+
+  getPlayerById(id: string): ClientPlayer | null {
+    return this.players.get(id) ?? null;
   }
 
   createZone(data: any) {
@@ -654,24 +698,35 @@ export default class World {
     return null;
   }
 
-  updateState(data: WorldStateData) {
-    const { vehicles, npcs } = data;
+  updateState(worldData: WorldStateData) {
+    const { vehicles, npcs } = worldData;
 
-    // vehicles?.forEach((networkVehicle) => {
-    //   const clientVehicle = this.getObjById(
-    //     networkVehicle.id,
-    //     this.vehicles
-    //   ) as ClientVehicle;
+    vehicles?.forEach((networkVehicle) => {
+      const clientVehicle = this.getObjById(
+        networkVehicle.id,
+        this.vehicles
+      ) as ClientVehicle;
 
-    //   if (!clientVehicle) return;
+      if (!clientVehicle) return;
 
-    //   clientVehicle.updateState(
-    //     networkVehicle.position,
-    //     networkVehicle.quaternion,
-    //     networkVehicle.wheels,
-    //     networkVehicle.hornPlaying
-    //   );
-    // });
+      //    clientVehicle.updateState(
+      //     networkVehicle.position,
+      //     networkVehicle.quaternion,
+      //     networkVehicle.wheels,
+      //     networkVehicle.hornPlaying,
+      //     networkVehicle.seats
+      //   );
+      // });
+
+      let seats = networkVehicle.seats;
+
+      seats = seats.map((seat: any) => ({
+        ...seat,
+        seater: seat.seater ? this.getPlayerById(seat.seater) : null,
+      }));
+
+      clientVehicle.updateState(networkVehicle.hornPlaying, seats);
+    });
 
     // npcs?.forEach((networkNPC: any) => {
     //   const clientNPC = this.getObjById(
@@ -694,7 +749,7 @@ export default class World {
     ClientPhysics.instance.update();
 
     this.vehicles.forEach((vehicle: ClientVehicle) => {
-      vehicle.update();
+      vehicle.update(delta);
     });
 
     this.npcs.forEach((npc: ClientNPC) => {
