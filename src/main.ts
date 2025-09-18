@@ -15,6 +15,11 @@ import DebugState from "./state/DebugState";
 
 let world: World | null = null;
 
+export type ServerNotification = {
+  type: "error" | "success" | "info";
+  content: string;
+};
+
 type Snapshot = {
   time: number; // server time of snapshot (ms)
   players: Record<string, NetworkPlayer>;
@@ -127,6 +132,13 @@ function registerSocketEvents(world: World) {
 
   socket.on("init-chat", (data: any) => {
     ChatManager.instance.init(data && data.messages ? data.messages : []);
+  });
+
+  socket.on("server-notification", (data: ServerNotification) => {
+    const event = new CustomEvent("server-notification", {
+      detail: data,
+    } as any);
+    window.dispatchEvent(event);
   });
 
   socket.on("zoneCreated", (data: any) => {
