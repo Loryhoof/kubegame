@@ -22,7 +22,7 @@ export default function InfoBar() {
         </>
       )}
 
-      <p className="pt-2">Kubegame v0.1.20</p>
+      <p className="pt-2">Kubegame v0.1.21</p>
       {/* <p className="pt-2 text-xs text-red-500 font-bold">
         Client prediction test. Vehicles are temporarily broken.
       </p> */}
