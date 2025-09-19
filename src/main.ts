@@ -162,17 +162,22 @@ function registerSocketEvents(world: World) {
       type: string;
       item: string;
       amount: number;
+      usedBy: string;
     };
   };
 
   socket.on("interactableRemoved", (data: InteractableRemovedData) => {
-    createToast({
-      type: "success",
-      content: `+${data.meta.amount} ${data.meta.item}`,
-      duration: 1000,
-    });
+    // only play this if picker is local player
+    if (data.meta.usedBy == NetworkManager.instance.localId) {
+      createToast({
+        type: "success",
+        content: `+${data.meta.amount} ${data.meta.item}`,
+        duration: 1000,
+      });
 
-    AudioManager.instance.playAudio("pickup", 0.1);
+      AudioManager.instance.playAudio("pickup", 0.1);
+    }
+
     world.removeInteractableByUUID(data.id);
   });
 
