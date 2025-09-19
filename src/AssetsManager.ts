@@ -13,15 +13,17 @@ interface ColliderData {
   indices: Uint16Array;
 }
 
+// Use import.meta.env.BASE_URL so paths work in dev & Electron build
+const base = import.meta.env.BASE_URL;
+
 const glbModels = [
-  { key: "boxman", path: "/boxman_2.glb" },
-  { key: "car", path: "/car.glb" },
-  { key: "ramp", path: "/ramp.glb" },
+  { key: "boxman", path: `${base}boxman_2.glb` },
+  { key: "car", path: `${base}car.glb` },
+  { key: "ramp", path: `${base}ramp.glb` },
 ];
 
 const colliderNames = ["ramp"];
-
-const COLLIDERS_PATH = "/colliders";
+const COLLIDERS_PATH = `${base}colliders`;
 
 export class AssetsManager {
   private static _instance: AssetsManager | null = null;
@@ -36,7 +38,6 @@ export class AssetsManager {
   }
 
   public models: Map<string, ModelData> = new Map();
-
   public colliders: Map<string, ColliderData> = new Map();
 
   async loadAll(): Promise<void> {
@@ -92,13 +93,11 @@ export class AssetsManager {
         const track = clip.tracks[i];
 
         // Keep single-frame tracks — they define static poses
-        if (track.times.length === 1) {
-          continue;
-        }
+        if (track.times.length === 1) continue;
 
         const numElements = track.values.length / track.times.length;
-
         let delta = 0;
+
         for (let e = 0; e < numElements; e++) {
           const valuesForElement = track.values.filter(
             (_, index) => index % numElements === e
@@ -108,9 +107,7 @@ export class AssetsManager {
           delta += Math.abs(max - min);
         }
 
-        if (delta === 0) {
-          clip.tracks.splice(i, 1);
-        }
+        if (delta === 0) clip.tracks.splice(i, 1);
       }
     });
   }
@@ -133,9 +130,7 @@ export class AssetsManager {
       return undefined;
     }
 
-    return {
-      scene: clone(this.models.get("ramp")!.scene),
-    };
+    return { scene: clone(this.models.get("ramp")!.scene) };
   }
 
   getCarClone(): { scene: THREE.Object3D } | undefined {
@@ -144,8 +139,6 @@ export class AssetsManager {
       return undefined;
     }
 
-    return {
-      scene: clone(this.models.get("car")!.scene),
-    };
+    return { scene: clone(this.models.get("car")!.scene) };
   }
 }

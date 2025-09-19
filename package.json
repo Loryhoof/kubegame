@@ -1,4 +1,15 @@
 {
+  "name": "kubegame",
+  "version": "1.0.0",
+  "description": "Kubegame",
+  "author": "Kevin Klatt",
+  "main": "electron.js",
+  "build": {
+    "files": [
+      "dist/**",
+      "electron.js"
+    ]
+  },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.0",
     "@tailwindcss/vite": "^4.1.12",
@@ -16,12 +27,19 @@
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.1",
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "vite": "^7.1.1"
   },
   "scripts": {
-    "dev": "vite --host"
+    "dev": "vite --host",
+    "desktop": "concurrently \"vite\" \"electron electron.js\"",
+    "build": "vite build",
+    "desktop:build": "npm run build && electron-builder"
   }
 }

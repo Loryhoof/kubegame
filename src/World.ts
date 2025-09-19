@@ -8,6 +8,8 @@ import ClientNPC from "./ClientNPC";
 import ClientPhysics from "./ClientPhysics";
 import ClientPlayer from "./ClientPlayer";
 
+const base = import.meta.env.BASE_URL;
+
 const loader = new THREE.TextureLoader();
 
 type WorldStateData = {
@@ -87,7 +89,7 @@ export default class World {
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     this.scene.add(ambientLight);
 
-    const texture = loader.load("/prototype.jpg");
+    const texture = loader.load(`${base}prototype.jpg`);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(16 * 8, 16 * 8);

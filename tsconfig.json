@@ -12,6 +12,7 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "sourceMap": true,
+    "types": ["vite/client"],
 
     // 👇 ADD THESE FOR JSX SUPPORT
     "jsx": "react-jsx", // for React 17+ JSX transform
