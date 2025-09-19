@@ -50,6 +50,7 @@ type NetworkPlayer = {
   isSitting: boolean;
   controlledObject: any;
   lastProcessedInputSeq?: number;
+  nickname: string;
 };
 
 let ping = 0;
@@ -454,6 +455,7 @@ function interpolatePlayers() {
         netPlayer.color = pNew.color;
         netPlayer.coins = pNew.coins;
         netPlayer.keys = pNew.keys;
+        netPlayer.nickname = pNew.nickname;
 
         continue;
       }
@@ -506,6 +508,7 @@ function interpolatePlayers() {
         keys: pNew.keys,
         isSitting: pNew.isSitting,
         controlledObject: pNew.controlledObject,
+        nickname: pNew.nickname,
       });
     }
   }

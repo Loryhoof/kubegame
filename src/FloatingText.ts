@@ -5,6 +5,7 @@ export default class FloatingText {
   private canvas: HTMLCanvasElement;
   private context: CanvasRenderingContext2D;
   private texture: THREE.CanvasTexture;
+  private text: string | null = null;
 
   constructor(message: string, color: string = "#ffffff") {
     // Create canvas & context
@@ -29,6 +30,10 @@ export default class FloatingText {
     this.setText(message, color);
   }
 
+  getText(): string {
+    return this.text ?? "";
+  }
+
   setText(message: string, color: string = "#ffffff") {
     const ctx = this.context;
 
@@ -44,6 +49,7 @@ export default class FloatingText {
 
     // Update texture
     this.texture.needsUpdate = true;
+    this.text = message;
   }
 
   setPositionAbove(object: THREE.Object3D, height: number = 2.5) {

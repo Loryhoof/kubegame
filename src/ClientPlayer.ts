@@ -22,6 +22,7 @@ type StateData = {
   keys: any;
   isSitting: boolean;
   controlledObject: { id: string } | null;
+  nickname: string;
 };
 
 class ClientPlayer {
@@ -66,6 +67,9 @@ class ClientPlayer {
   private lastGroundedTime: number = 0;
   private jumpCooldown: number = 200; // ms between jumps
   private coyoteTime: number = 100; // ms grace period after leaving ground
+
+  // network stuff
+  public nickname: string | null = null;
 
   constructor(
     world: World,
@@ -636,6 +640,7 @@ class ClientPlayer {
       keys,
       isSitting,
       controlledObject,
+      nickname,
     } = state;
 
     this.coins = coins;
@@ -647,6 +652,7 @@ class ClientPlayer {
     this.isSitting = isSitting;
 
     this.controlledObject = controlledObject;
+    this.nickname = nickname;
 
     // Smooth rotation
     this.dummy.quaternion.slerp(
@@ -693,6 +699,7 @@ class ClientPlayer {
       keys,
       isSitting,
       controlledObject,
+      nickname,
     } = state;
 
     this.coins = coins;
@@ -704,6 +711,8 @@ class ClientPlayer {
     this.isSitting = isSitting;
 
     this.controlledObject = controlledObject;
+
+    this.nickname = nickname;
 
     // Smooth rotation
     // this.dummy.quaternion.slerp(
@@ -895,13 +904,15 @@ class ClientPlayer {
     this.updateAudio();
     this.mixer.update(delta);
 
-    // if (!this.isLocalPlayer && this.infoSprite) {
-    //   // let color = "#ffffff";
-    //   // if (this.health <= 25) {
-    //   //   color = "#ff0000";
-    //   // }
-    //   this.infoSprite.setText(`${this.networkId.slice(0, 4)}`);
-    // }
+    if (!this.isLocalPlayer && this.infoSprite) {
+      if (!this.nickname) return;
+
+      if (this.infoSprite.getText() == this.nickname) return;
+
+      this.infoSprite.setText(this.nickname);
+
+      console.log("Settting nickname", this.nickname);
+    }
   }
 }
 

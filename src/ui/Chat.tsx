@@ -56,14 +56,39 @@ export default function Chat() {
         }
       },
     },
+    nickname: {
+      description: "Set user nickname",
+      usage: "/nickname <your_nickname>",
+      execute: (args) => {
+        const value = args[0];
+
+        if (value.length == 0) {
+          addSystemMessage("Nickname empty");
+          return;
+        }
+
+        if (value.length > 20) {
+          addSystemMessage("Nickname too long");
+          return;
+        }
+
+        socket.emit("user-command", {
+          command: "change-nickname",
+          value: value,
+        });
+
+        addSystemMessage(`Changed nickname to: ${value}`);
+      },
+    },
     help: {
       description: "List all commands",
       usage: "/help",
       execute: () => {
-        addSystemMessage("Available commands:");
+        const lines = ["Available commands:"];
         for (const cmd in commands) {
-          addSystemMessage(`/${cmd} - ${commands[cmd].description}`);
+          lines.push(`/${cmd} - ${commands[cmd].description}`);
         }
+        addSystemMessage(lines);
       },
     },
   };
@@ -81,8 +106,9 @@ export default function Chat() {
     }
   };
 
-  const addSystemMessage = (text: string) => {
-    setMessages((prev) => [...prev, { id: "system", text }]);
+  const addSystemMessage = (text: string | string[]) => {
+    const content = Array.isArray(text) ? text.join("\n") : text;
+    setMessages((prev) => [...prev, { id: "system", text: content }]);
   };
 
   // --- Send message or command ---
@@ -99,8 +125,11 @@ export default function Chat() {
     }
 
     // Regular chat message
-    const newMessage: ChatMessage = { id: socket.id as string, text: input };
-    setMessages((prev) => [...prev, newMessage]);
+    const newMessage: ChatMessage = {
+      id: socket.id as string,
+      text: input,
+    };
+    // setMessages((prev) => [...prev, newMessage]);
     socket.emit("send-chat-message", newMessage);
     setInput("");
   };
@@ -120,7 +149,10 @@ export default function Chat() {
   // --- Listen for incoming messages from server ---
   useEffect(() => {
     const handleMessage = (e: any) => {
-      setMessages((prev) => [...prev, { id: e.id as string, text: e.text }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: e.id as string, text: e.text, nickname: e.nickname },
+      ]);
     };
 
     socket.on("chat-message", handleMessage);
@@ -145,6 +177,13 @@ export default function Chat() {
 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isTyping]);
+
+  const formatUsername = (msg: ChatMessage): string => {
+    console.log(msg);
+    if (msg.nickname && msg.nickname.length > 0) return msg.nickname;
+
+    return msg.id.slice(0, 4);
+  };
 
   // --- Auto-scroll to latest message ---
   useEffect(() => {
@@ -173,10 +212,12 @@ export default function Chat() {
           <div
             key={`${msg.id}-${index}`}
             className={`px-1 py-0.5 ${
-              msg.id === "system" ? "text-yellow-400" : "text-gray-200"
+              msg.id === "system"
+                ? "text-yellow-400 bg-gray-700/40 rounded p-1 whitespace-pre-line"
+                : "text-gray-200"
             }`}
           >
-            {msg.id === "system" ? "system:" : `${msg.id.slice(0, 4)}:`}{" "}
+            {msg.id === "system" ? "" : `${formatUsername(msg)}: `}
             {msg.text}
           </div>
         ))}
