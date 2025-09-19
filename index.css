@@ -30,14 +30,17 @@ body {
   font-family: "Press Start 2P", monospace, sans-serif;
 }
 
-@keyframes fadeInOut {
+@keyframes fadeIn {
   0% {
     opacity: 0;
   }
-  10% {
+  100% {
     opacity: 1;
   }
-  90% {
+}
+
+@keyframes fadeOut {
+  0% {
     opacity: 1;
   }
   100% {
@@ -45,6 +48,10 @@ body {
   }
 }
 
-.fade-in-out {
-  animation: fadeInOut 2.5s ease forwards;
+.fade-in {
+  animation: fadeIn 0.3s forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.5s forwards;
 }
