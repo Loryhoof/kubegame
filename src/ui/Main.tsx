@@ -8,6 +8,7 @@ import LoadingScreen from "./LoadingScreen";
 import MobileControls from "./MobileControls";
 import Chat from "./Chat";
 import { isMobile } from "../utils";
+import Notifications from "./Notifications";
 
 const Main = () => {
   const [ready, setReady] = useState<boolean>(false);
@@ -34,6 +35,7 @@ const Main = () => {
           <InteractButton />
           <MobileControls />
           <InfoBar />
+          <Notifications />
           {!isMobile() && <Chat />}
         </>
       )}

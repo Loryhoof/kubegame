@@ -1,6 +1,5 @@
 import "../../index.css";
 import React, { useState, useEffect } from "react";
-import { ServerNotification } from "../main";
 
 type EventData = {
   networkId: string;
@@ -18,7 +17,6 @@ export default function HUD() {
   const [health, setHealth] = useState(100);
   const [coins, setCoins] = useState(0);
   const [ping, setPing] = useState(0);
-  const [notifications, setNotifications] = useState<ServerNotification[]>([]);
 
   useEffect(() => {
     function onPlayerUpdate(e: CustomEvent<EventData>) {
@@ -31,61 +29,18 @@ export default function HUD() {
       setPing(eventDetails.ping);
     }
 
-    function onServerNotification(e: CustomEvent<ServerNotification>) {
-      const notif = e.detail;
-      setNotifications((prev) => [...prev, notif]);
-
-      setTimeout(() => {
-        setNotifications((prev) => prev.slice(1));
-      }, 2500); // short display time for game feel
-    }
-
     window.addEventListener("player-update", onPlayerUpdate as EventListener);
-    window.addEventListener(
-      "server-notification",
-      onServerNotification as EventListener
-    );
 
     return () => {
       window.removeEventListener(
         "player-update",
         onPlayerUpdate as EventListener
       );
-      window.removeEventListener(
-        "server-notification",
-        onServerNotification as EventListener
-      );
     };
   }, []);
 
-  const getNotificationStyle = (type: string) => {
-    switch (type) {
-      case "error":
-        return "bg-red-500/70";
-      case "success":
-        return "bg-green-500/70";
-      default:
-        return "bg-blue-500/70"; // info
-    }
-  };
-
   return (
     <>
-      {/* Game-style subtle notifications */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center space-y-1 z-[1000]">
-        {notifications.map((n, index) => (
-          <p
-            key={index}
-            className={`px-3 py-1 rounded text-sm font-semibold text-white shadow-md transition-all duration-300 ${getNotificationStyle(
-              n.type
-            )}`}
-            style={{ animation: "fadeInOut 2.5s forwards" }}
-          >
-            {n.content}
-          </p>
-        ))}
-      </div>
-
       {/* HUD stats */}
       <div
         style={{

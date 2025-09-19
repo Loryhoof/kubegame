@@ -3,7 +3,7 @@ import World from "./World";
 import InputManager from "./InputManager";
 import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
-import { getRandomFromArray, isMobile } from "./utils";
+import { createToast, getRandomFromArray, isMobile } from "./utils";
 import AudioManager from "./AudioManager";
 
 import Stats from "stats.js";
@@ -18,6 +18,7 @@ let world: World | null = null;
 export type ServerNotification = {
   type: "error" | "success" | "info";
   content: string;
+  duration?: number;
 };
 
 type Snapshot = {
@@ -135,10 +136,7 @@ function registerSocketEvents(world: World) {
   });
 
   socket.on("server-notification", (data: ServerNotification) => {
-    const event = new CustomEvent("server-notification", {
-      detail: data,
-    } as any);
-    window.dispatchEvent(event);
+    createToast(data);
   });
 
   socket.on("zoneCreated", (data: any) => {
@@ -157,9 +155,24 @@ function registerSocketEvents(world: World) {
     world.removeByUUID(uuid);
   });
 
-  socket.on("interactableRemoved", (uuid: string) => {
+  type InteractableRemovedData = {
+    id: string;
+    meta: {
+      type: string;
+      item: string;
+      amount: number;
+    };
+  };
+
+  socket.on("interactableRemoved", (data: InteractableRemovedData) => {
+    createToast({
+      type: "success",
+      content: `+${data.meta.amount} ${data.meta.item}`,
+      duration: 1000,
+    });
+
     AudioManager.instance.playAudio("pickup", 0.1);
-    world.removeInteractableByUUID(uuid);
+    world.removeInteractableByUUID(data.id);
   });
 
   socket.on("vehicleRemoved", (uuid: string) => {

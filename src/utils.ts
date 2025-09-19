@@ -1,3 +1,5 @@
+import { ServerNotification } from "./main";
+
 export function getAnimationByName(animations: any[], name: string) {
   return animations.find((clip) => clip.name === name);
 }
@@ -8,6 +10,13 @@ export function getRandomFromArray(arr: any[]) {
   }
   const randomIndex = Math.floor(Math.random() * arr.length);
   return arr[randomIndex];
+}
+
+export function createToast(data: ServerNotification) {
+  const event = new CustomEvent("server-notification", {
+    detail: data,
+  } as any);
+  window.dispatchEvent(event);
 }
 
 export function isMobile() {
