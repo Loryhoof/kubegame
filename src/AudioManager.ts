@@ -8,6 +8,12 @@ const audioList = [
   { key: "pickup", url: "audio/pickup.mp3" },
   { key: "punch_impact", url: "audio/punch_impact.mp3" },
   { key: "horn", url: "audio/horn.mp3" },
+  { key: "pistol_shot_1", url: "audio/weapon/pistol/1.mp3" },
+  { key: "pistol_shot_2", url: "audio/weapon/pistol/2.mp3" },
+  { key: "impact_1", url: "audio/impact/1.mp3" },
+  { key: "impact_2", url: "audio/impact/2.mp3" },
+  { key: "hitmarker", url: "audio/hitmarker.mp3" },
+  { key: "empty_shot", url: "audio/empty-pistol.mp3" },
 ];
 
 export default class AudioManager {

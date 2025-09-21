@@ -80,6 +80,27 @@ export default function Chat() {
         addSystemMessage(`Changed nickname to: ${value}`);
       },
     },
+    give: {
+      description: "Give item",
+      usage: "/give <item_name>",
+      execute: (args) => {
+        const value = args[0];
+        const amount = args[1];
+
+        if (value.length == 0) {
+          addSystemMessage("No item name");
+          return;
+        }
+
+        socket.emit("user-command", {
+          command: "give",
+          value: value,
+          amount: parseInt(amount),
+        });
+
+        // addSystemMessage(`Changed nickname to: ${value}`);
+      },
+    },
     help: {
       description: "List all commands",
       usage: "/help",

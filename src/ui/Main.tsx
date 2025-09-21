@@ -9,6 +9,7 @@ import MobileControls from "./MobileControls";
 import Chat from "./Chat";
 import { isMobile } from "../utils";
 import Notifications from "./Notifications";
+import Crosshair from "./Crosshair";
 
 const Main = () => {
   const [ready, setReady] = useState<boolean>(false);
@@ -37,6 +38,7 @@ const Main = () => {
           <InfoBar />
           <Notifications />
           {!isMobile() && <Chat />}
+          <Crosshair />
         </>
       )}
       <LoadingScreen />

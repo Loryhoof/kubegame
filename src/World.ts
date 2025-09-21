@@ -638,6 +638,20 @@ export default class World {
     this.scene.add(zoneMesh);
   }
 
+  createHitmarker(position: THREE.Vector3) {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, 0.1),
+      new THREE.MeshBasicMaterial({ color: 0x000000 })
+    );
+
+    this.scene.add(mesh);
+    mesh.position.copy(position);
+
+    setTimeout(() => {
+      this.scene.remove(mesh);
+    }, 5000);
+  }
+
   createInteractable(data: any) {
     const { id, position, quaternion } = data;
 

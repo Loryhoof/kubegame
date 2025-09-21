@@ -8,9 +8,24 @@ import CameraManager from "./CameraManager";
 import World from "./World";
 import { PLAYER_MASS } from "./constants";
 import ClientPhysics, { PhysicsObject } from "./ClientPhysics";
+import ClientWeapon from "./ClientWeapon";
+import { IHoldable } from "./interfaces/IHoldable";
+import NetworkManager from "./NetworkManager";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
+
+const handOffset = new THREE.Vector3(0, 0.2, 0);
+
+type HoldingItem = {
+  object: THREE.Object3D;
+};
+
+type Hand = {
+  side: "left" | "right";
+  bone: THREE.Bone;
+  item?: IHoldable;
+};
 
 type StateData = {
   position: THREE.Vector3;
@@ -23,6 +38,15 @@ type StateData = {
   isSitting: boolean;
   controlledObject: { id: string } | null;
   nickname: string;
+  leftHand: {
+    side: "left" | "right";
+    item?: { name: string; ammo: string; isReloading: boolean };
+  };
+  rightHand: {
+    side: "left" | "right";
+    item?: { name: string; ammo: string; isReloading: boolean };
+  };
+  camQuat: THREE.Quaternion;
 };
 
 class ClientPlayer {
@@ -71,6 +95,23 @@ class ClientPlayer {
   // network stuff
   public nickname: string | null = null;
 
+  private bones: Map<string, any> = new Map();
+
+  public lastUseHandTime: number = -Infinity;
+
+  // hands
+
+  public leftHand: Hand;
+  public rightHand: Hand;
+
+  public lastMouseLeft: boolean = false;
+
+  private viewQuaternion: THREE.Quaternion | null = null;
+
+  // sounds
+
+  public sounds: Map<string, THREE.PositionalAudio> = new Map();
+
   constructor(
     world: World,
     networkId: string,
@@ -78,6 +119,9 @@ class ClientPlayer {
     scene: THREE.Scene,
     isLocalPlayer: boolean = false
   ) {
+    // debug stuff
+
+    //
     this.world = world;
     this.networkId = networkId;
     this.color = color;
@@ -144,6 +188,11 @@ class ClientPlayer {
         "Running_Lower",
         this.mixer.clipAction(getAnimationByName(modelAnims, "Running_Lower")),
       ],
+
+      [
+        "Aim_Upper",
+        this.mixer.clipAction(getAnimationByName(modelAnims, "Aim_Upper")),
+      ],
     ]);
 
     this.mixer.addEventListener("finished", (e) => {
@@ -156,16 +205,27 @@ class ClientPlayer {
       }
     });
 
+    // bones stuff
+    this.model.traverse((obj: any) => {
+      if (obj instanceof THREE.Bone) {
+        console.log(obj.name);
+        this.bones.set(obj.name, obj);
+      }
+    });
+
     this.scene.add(this.dummy);
     this.dummy.add(this.model);
     this.boundingBox = new THREE.Box3();
 
-    // // Play default animations
-    // this.animations.get("Idle")!.play();
-    // this.animations.get("Walk_Lower")!.play();
-    // this.animations.get("Walk_Upper")!.play();
-    // this.animations.get("Strave_Walk_Left")!.play();
-    // this.animations.get("Strave_Walk_Right")!.play();
+    // const weapon: HoldingItem = {
+    //   object: this.debugObject,
+    // };
+
+    this.leftHand = { side: "left", bone: this.bones.get("Bone006") } as Hand;
+    this.rightHand = {
+      side: "right",
+      bone: this.bones.get("Bone003"),
+    } as Hand;
 
     this.animations.forEach((anim, name) => {
       anim.play();
@@ -180,8 +240,23 @@ class ClientPlayer {
     }
 
     this.physicsObject = ClientPhysics.instance.createPlayerCapsule();
-    console.log(this.physicsObject, "physicskb");
   }
+
+  // initAudio() {
+  //   const audioManager = AudioManager.instance;
+  //   const listener = audioManager.getListener();
+  //   const buffer = audioManager.getBufferByName("pistol_shot_1");
+
+  //   const hornSound = new THREE.PositionalAudio(listener)
+  //     .setVolume(0.5)
+  //     .setLoop(true);
+
+  //   if (buffer) hornSound.setBuffer(buffer);
+
+  //   this.sounds.set("horn", hornSound);
+
+  //   this.dummy.add(hornSound);
+  // }
 
   getKeys() {
     if (!this.isLocalPlayer) return null;
@@ -343,7 +418,8 @@ class ClientPlayer {
     const WALK_SPEED = BASE_SPEED;
     const RUN_SPEED = BASE_SPEED * 2;
     const MAX_WALL_DISTANCE = 0.3;
-    const speed = input.shift ? RUN_SPEED : WALK_SPEED;
+    let speed = input.shift ? RUN_SPEED : WALK_SPEED;
+    if (input.mouseRight) speed = WALK_SPEED;
 
     // ---- INPUT VECTOR ----
     inputDir.set(0, 0, 0);
@@ -422,135 +498,6 @@ class ClientPlayer {
         this.dummy.quaternion.slerp(targetQuat, 0.25);
       }
     }
-
-    // const input = keys || InputManager.instance.getState();
-    // const inputDir = new THREE.Vector3();
-
-    // const GRAVITY = -9.81;
-    // const JUMP_IMPULSE = 0.8; // backend impulse
-    // const JUMP_FORCE = JUMP_IMPULSE / PLAYER_MASS;
-    // const BASE_SPEED = 4;
-    // const WALK_SPEED = BASE_SPEED;
-    // const RUN_SPEED = BASE_SPEED * 2;
-    // const MAX_WALL_DISTANCE = 0.3;
-
-    // // ---- INPUT VECTOR ----
-    // inputDir.set(0, 0, 0);
-    // if (input.w) inputDir.z -= 1;
-    // if (input.s) inputDir.z += 1;
-    // if (input.a) inputDir.x -= 1;
-    // if (input.d) inputDir.x += 1;
-
-    // const hasInput = inputDir.lengthSq() > 0;
-
-    // let worldDir = new THREE.Vector3();
-    // if (hasInput) {
-    //   inputDir.normalize();
-
-    //   const camQuat = quat || CameraManager.instance.getCamera().quaternion;
-    //   const euler = new THREE.Euler(0, 0, 0, "YXZ");
-    //   euler.setFromQuaternion(camQuat);
-
-    //   const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-    //     new THREE.Vector3(0, 1, 0),
-    //     euler.y
-    //   );
-
-    //   worldDir = inputDir.applyQuaternion(yawQuat);
-    // }
-
-    // // ---- HORIZONTAL VELOCITY ----
-    // const speed = input.shift ? RUN_SPEED : WALK_SPEED;
-    // const targetVel = hasInput
-    //   ? worldDir.multiplyScalar(speed)
-    //   : new THREE.Vector3(0, 0, 0);
-
-    // const ACCEL = 25;
-    // this.velocity.x = THREE.MathUtils.lerp(
-    //   this.velocity.x,
-    //   targetVel.x,
-    //   Math.min(1, ACCEL * delta)
-    // );
-    // this.velocity.z = THREE.MathUtils.lerp(
-    //   this.velocity.z,
-    //   targetVel.z,
-    //   Math.min(1, ACCEL * delta)
-    // );
-
-    // // ---- GRAVITY ----
-    // this.velocity.y += GRAVITY * delta;
-
-    // // ---- GROUND CHECK ----
-    // const groundPoint = this.rayDown();
-    // let isGrounded = false;
-
-    // if (groundPoint) {
-    //   const dist = groundPoint.distanceTo(this.dummy.position);
-
-    //   // hard snap if close enough to the ground
-    //   if (dist <= 0.5 && this.velocity.y <= 0) {
-    //     this.dummy.position.y = groundPoint.y + 0.5;
-    //     this.velocity.y = 0;
-    //     isGrounded = true;
-    //   }
-    // }
-
-    // // ---- JUMP ----
-    // if (input[" "] && isGrounded) {
-    //   this.velocity.y = JUMP_FORCE;
-    //   isGrounded = false;
-    // }
-
-    // // ---- WALL COLLISION ----
-    // if (this.velocity.lengthSq() > 0.0001) {
-    //   this.raycaster.set(
-    //     this.dummy.position,
-    //     this.velocity.clone().normalize()
-    //   );
-    //   const intersects = this.raycaster.intersectObjects(
-    //     this.world.entities.map((item) => item.mesh),
-    //     true
-    //   );
-
-    //   if (
-    //     intersects.length > 0 &&
-    //     intersects[0].distance <= MAX_WALL_DISTANCE
-    //   ) {
-    //     this.velocity.x = 0;
-    //     this.velocity.z = 0;
-    //   }
-    // }
-
-    // // ---- APPLY MOVEMENT ----
-    // this.dummy.position.addScaledVector(this.velocity, delta);
-
-    // // ---- ROTATE PLAYER ----
-    // const horizontalVelocity = new THREE.Vector3(
-    //   this.velocity.x,
-    //   0,
-    //   this.velocity.z
-    // );
-
-    // if (horizontalVelocity.lengthSq() > 0.0001) {
-    //   if (input.mouseRight) {
-    //     const camQuat = quat || CameraManager.instance.getCamera().quaternion;
-    //     const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
-
-    //     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-    //       new THREE.Vector3(0, 1, 0),
-    //       euler.y
-    //     );
-
-    //     this.dummy.quaternion.slerp(yawQuat, 0.25);
-    //   } else {
-    //     const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
-    //     const targetQuat = new THREE.Quaternion().setFromAxisAngle(
-    //       new THREE.Vector3(0, 1, 0),
-    //       yaw
-    //     );
-    //     this.dummy.quaternion.slerp(targetQuat, 0.25);
-    //   }
-    // }
   }
 
   createFloatingText(): THREE.Sprite {
@@ -582,53 +529,6 @@ class ClientPlayer {
     return sprite;
   }
 
-  // setInterpolatedState(
-  //   state: StateData
-  // ) {
-
-  //   const {
-  //     position,
-  //     quaternion,
-  //     color,
-  //     health,
-  //     coins,
-  //     velocity,
-  //     keys,
-  //     isSitting,
-  //     controlledObject,
-  //   } = state;
-  //   //console.log(position, quaternion);
-
-  //   //return;
-  //   this.velocity.copy(velocity);
-  //   this.dummy.position.copy(position);
-  //   this.dummy.quaternion.slerp(quaternion, 0.15);
-
-  //   // Initial material setup
-  //   if (!this.hasInit) {
-  //     this.model.traverse((item: any) => {
-  //       if (item instanceof THREE.SkinnedMesh) {
-  //         if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
-  //           item.material = new THREE.MeshStandardMaterial({
-  //             color: 0xffffff * Math.random(),
-  //           });
-  //         }
-  //         if (["Leg_R", "Leg_L"].includes(item.name)) {
-  //           item.material = new THREE.MeshStandardMaterial({
-  //             color: pantColor,
-  //           });
-  //         }
-  //         if (item.name === "Head") {
-  //           item.material = new THREE.MeshStandardMaterial({
-  //             color: skinColor,
-  //           });
-  //         }
-  //       }
-  //     });
-  //     this.hasInit = true;
-  //   }
-  // }
-
   setRemoteState(state: StateData) {
     const {
       position,
@@ -641,7 +541,12 @@ class ClientPlayer {
       isSitting,
       controlledObject,
       nickname,
+      leftHand,
+      rightHand,
+      camQuat,
     } = state;
+
+    this.viewQuaternion = camQuat;
 
     this.coins = coins;
     this.color = color;
@@ -650,6 +555,8 @@ class ClientPlayer {
     this.dummy.position.copy(position);
     // this.keys = keys;
     this.isSitting = isSitting;
+
+    this.keys = keys;
 
     this.controlledObject = controlledObject;
     this.nickname = nickname;
@@ -664,6 +571,22 @@ class ClientPlayer {
       ),
       0.25
     );
+
+    if (leftHand) {
+      const { side, item } = leftHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
+
+    if (rightHand) {
+      const { side, item } = rightHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
 
     // Initial material setup
     if (!this.hasInit) {
@@ -688,6 +611,32 @@ class ClientPlayer {
     }
   }
 
+  handleHandItem(
+    side: "left" | "right",
+    item: { name: string; ammo: string; isReloading: boolean }
+  ) {
+    const hand = side == "left" ? this.leftHand : (this.rightHand as Hand);
+
+    if (item.name == "pistol") {
+      if (hand.item && hand.item.name == item.name) {
+        // update existing state
+
+        const weapon = hand.item as ClientWeapon;
+
+        weapon.ammo = parseInt(item.ammo);
+        weapon.isReloading = item.isReloading;
+      } else {
+        // create new
+        const mesh = AssetsManager.instance.models.get("pistol")!.scene.clone();
+        this.scene.add(mesh);
+
+        const weapon = new ClientWeapon("pistol", mesh);
+
+        hand.item = weapon;
+      }
+    }
+  }
+
   setState(state: StateData) {
     const {
       position,
@@ -700,7 +649,12 @@ class ClientPlayer {
       isSitting,
       controlledObject,
       nickname,
+      leftHand,
+      rightHand,
+      camQuat,
     } = state;
+
+    this.viewQuaternion = camQuat;
 
     this.coins = coins;
     this.color = color;
@@ -714,16 +668,21 @@ class ClientPlayer {
 
     this.nickname = nickname;
 
-    // Smooth rotation
-    // this.dummy.quaternion.slerp(
-    //   new THREE.Quaternion(
-    //     quaternion.x,
-    //     quaternion.y,
-    //     quaternion.z,
-    //     quaternion.w
-    //   ),
-    //   0.25
-    // );
+    if (leftHand) {
+      const { side, item } = leftHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
+
+    if (rightHand) {
+      const { side, item } = rightHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
 
     // Initial material setup
     if (!this.hasInit) {
@@ -794,7 +753,8 @@ class ClientPlayer {
       ? InputManager.instance.getState()
       : this.keys;
     const isStrafing = keys.mouseRight;
-    const speedFactor = keys.shift ? 1.5 : 1;
+    let speedFactor = keys.shift ? 1.5 : 1;
+    if (isStrafing) speedFactor = 1;
 
     const horizontalVelocity = new THREE.Vector3(
       this.velocity.x,
@@ -802,7 +762,7 @@ class ClientPlayer {
       this.velocity.z
     );
     const moving = horizontalVelocity.length() > 0.01;
-    const isRunning = keys.shift && moving;
+    const isRunning = keys.shift && moving && !isStrafing;
 
     const idle = this.animations.get("Idle");
     const walkLower = this.animations.get("Walk_Lower");
@@ -814,6 +774,82 @@ class ClientPlayer {
     const runningUpper = this.animations.get("Running_Upper");
     const runningLower = this.animations.get("Running_Lower");
 
+    const aimUpper = this.animations.get("Aim_Upper");
+
+    // --- AIM LOGIC ---
+    const aiming = keys.mouseRight;
+    if (aiming && this.rightHand.item) {
+      this.interpolateWeight(aimUpper, 1, delta);
+      this.interpolateWeight(idle, 0, delta);
+      this.interpolateWeight(walkUpper, 0, delta);
+      this.interpolateWeight(walkLower, 0, delta);
+      this.interpolateWeight(strafeLeft, 0, delta);
+      this.interpolateWeight(strafeRight, 0, delta);
+      this.interpolateWeight(run, 0, delta);
+      this.interpolateWeight(runningUpper, 0, delta);
+      this.interpolateWeight(runningLower, 0, delta);
+
+      if (moving) {
+        if (keys.a) {
+          this.interpolateWeight(strafeLeft, 1, delta * speedFactor);
+          this.interpolateWeight(strafeRight, 0, delta);
+        } else if (keys.d) {
+          this.interpolateWeight(strafeRight, 1, delta * speedFactor);
+          this.interpolateWeight(strafeLeft, 0, delta);
+        } else {
+          this.interpolateWeight(walkLower, 1, delta * speedFactor);
+          this.interpolateWeight(strafeLeft, 0, delta);
+          this.interpolateWeight(strafeRight, 0, delta);
+        }
+      } else {
+        this.interpolateWeight(idle, 0, delta);
+        this.interpolateWeight(walkUpper, 0, delta);
+        this.interpolateWeight(walkLower, 0, delta);
+        this.interpolateWeight(strafeLeft, 0, delta);
+        this.interpolateWeight(strafeRight, 0, delta);
+        this.interpolateWeight(run, 0, delta);
+        this.interpolateWeight(runningUpper, 0, delta);
+        this.interpolateWeight(runningLower, 0, delta);
+      }
+
+      const rootBone = this.bones.get("Bone") as THREE.Bone;
+
+      if (rootBone) {
+        // pick source quaternion: local cam or remote view
+        const sourceQuat = this.isLocalPlayer
+          ? CameraManager.instance.getCamera().quaternion
+          : this.viewQuaternion ?? new THREE.Quaternion();
+
+        // get forward direction in world space
+        const forwardWorld = new THREE.Vector3(0, 0, -1).applyQuaternion(
+          sourceQuat
+        );
+
+        // convert to local player space
+        const forwardLocal = forwardWorld.clone();
+        this.dummy.worldToLocal(forwardLocal.add(this.dummy.position));
+
+        // extract pitch & yaw from local direction
+        const pitch = Math.atan2(
+          forwardLocal.y,
+          Math.sqrt(
+            forwardLocal.x * forwardLocal.x + forwardLocal.z * forwardLocal.z
+          )
+        );
+        let yaw = -Math.atan2(forwardLocal.x, -forwardLocal.z);
+
+        // clamp yaw for aiming
+        const maxTwist = Math.PI / 2.5;
+        yaw = Math.max(-maxTwist, Math.min(maxTwist, yaw));
+
+        // apply rotations to bone
+        rootBone.rotation.z = pitch;
+        rootBone.rotation.y = yaw;
+      }
+
+      return;
+    }
+
     if (this.isSitting) {
       this.interpolateWeight(sit, 1, delta);
       this.interpolateWeight(idle, 0, delta);
@@ -824,6 +860,7 @@ class ClientPlayer {
       //this.interpolateWeight(run, 0, delta);
       this.interpolateWeight(runningLower, 0, delta);
       this.interpolateWeight(runningUpper, 0, delta);
+      this.interpolateWeight(aimUpper, 0, delta);
 
       return;
     } else {
@@ -834,6 +871,7 @@ class ClientPlayer {
       this.interpolateWeight(idle, 0, delta);
       this.interpolateWeight(walkUpper, 0, delta);
       this.interpolateWeight(runningUpper, 0, delta);
+      this.interpolateWeight(aimUpper, 0, delta);
     }
 
     if (isRunning) {
@@ -847,6 +885,7 @@ class ClientPlayer {
       this.interpolateWeight(strafeLeft, 0, delta);
       this.interpolateWeight(strafeRight, 0, delta);
       this.interpolateWeight(idle, 0, delta);
+      this.interpolateWeight(aimUpper, 0, delta);
     } else if (moving) {
       this.interpolateWeight(runningUpper, 0, delta);
       this.interpolateWeight(runningLower, 0, delta);
@@ -855,6 +894,7 @@ class ClientPlayer {
         this.interpolateWeight(walkUpper, 1, delta * speedFactor);
 
       if (isStrafing) {
+        //this.interpolateWeight(aimUpper, 1, delta);
         this.interpolateWeight(walkLower, 0, delta);
         if (keys.a) {
           this.interpolateWeight(strafeLeft, 1, delta * speedFactor);
@@ -871,6 +911,7 @@ class ClientPlayer {
         this.interpolateWeight(walkLower, 1, delta * speedFactor);
         this.interpolateWeight(strafeLeft, 0, delta);
         this.interpolateWeight(strafeRight, 0, delta);
+        this.interpolateWeight(aimUpper, 0, delta);
       }
 
       this.interpolateWeight(idle, 0, delta);
@@ -883,6 +924,7 @@ class ClientPlayer {
       this.interpolateWeight(run, 0, delta);
       this.interpolateWeight(runningUpper, 0, delta);
       this.interpolateWeight(runningLower, 0, delta);
+      this.interpolateWeight(aimUpper, 0, delta);
     }
   }
 
@@ -890,7 +932,41 @@ class ClientPlayer {
     // Implement audio triggers here if needed
   }
 
+  updateHands() {
+    if (!this.leftHand?.bone || !this.rightHand?.bone) return;
+    if (!this.leftHand.item && !this.rightHand.item) return;
+
+    const applyHandTransform = (hand: any) => {
+      if (!hand.item) return;
+
+      const worldPos = new THREE.Vector3();
+      const worldQuat = new THREE.Quaternion();
+
+      // Get bone world transform
+      hand.bone.getWorldPosition(worldPos);
+      hand.bone.getWorldQuaternion(worldQuat);
+
+      // Position = bone position + offset
+      hand.item.object.position.copy(
+        worldPos.add(handOffset.clone().applyQuaternion(worldQuat))
+      );
+
+      // Orientation = bone orientation * extra rotation
+      const extraRot = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, -1),
+        Math.PI / 2
+      );
+      hand.item.object.quaternion.copy(worldQuat).multiply(extraRot);
+    };
+
+    applyHandTransform(this.leftHand);
+    applyHandTransform(this.rightHand);
+  }
+
   update(delta: number) {
+    // if (this.rightHand.item) {
+    //   console.log(this.rightHand.item, "item");
+    // }
     // Check grounded before movement
     if (this.isGrounded()) {
       this.grounded = true;
@@ -900,9 +976,29 @@ class ClientPlayer {
     }
 
     // this.predictMovement(delta);
-    this.updateAnimationState(delta);
+    // this.updateAnimationState(delta);
     this.updateAudio();
     this.mixer.update(delta);
+
+    this.updateAnimationState(delta);
+    this.updateHands();
+
+    // if (leftArm && rightArm) {
+    //   const baseRot = -Math.PI / 2;
+
+    //   const cam = CameraManager.instance.getCamera();
+    //   const cameraDir = new THREE.Vector3();
+    //   cam.getWorldDirection(cameraDir);
+
+    //   // Invert the pitch so looking up rotates arms up
+    //   const pitch = -Math.atan2(
+    //     cameraDir.y,
+    //     Math.sqrt(cameraDir.x * cameraDir.x + cameraDir.z * cameraDir.z)
+    //   );
+
+    //   leftArm.rotation.z = baseRot + pitch;
+    //   rightArm.rotation.z = baseRot + pitch;
+    // }
 
     if (!this.isLocalPlayer && this.infoSprite) {
       if (!this.nickname) return;

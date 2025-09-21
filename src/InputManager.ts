@@ -75,6 +75,10 @@ export default class InputManager {
     window.addEventListener("wheel", this.onMouseWheel);
   }
 
+  public isHoldingRightMouse = () => {
+    return this.keys["mouseRight"];
+  };
+
   private onMouseWheel = (e: WheelEvent) => {
     if (this.ignoreKeys) return;
 
@@ -88,19 +92,27 @@ export default class InputManager {
 
   private onPointerMove = (e: PointerEvent) => {
     if (!this.renderer) return;
-
     if (document.pointerLockElement !== this.renderer.domElement) return;
 
+    // update yaw & pitch first
     this.cameraYaw -= e.movementX * this.cameraSensitivity;
     this.cameraPitch += e.movementY * this.cameraSensitivity;
 
-    const maxPitch = Math.PI / 3;
-    const minPitch = -Math.PI / 12;
+    // aiming state → widen pitch range slightly
+    const aiming = this.keys["mouseRight"];
+
+    // normal: 60° down, 15° up | aiming: 70° down, 40° up
+    const maxPitch = aiming ? Math.PI / 2.5 : Math.PI / 3; // ~70° vs 60°
+    const minPitch = aiming ? -Math.PI / 4.5 : -Math.PI / 12; // ~40° vs 15°
+
+    // clamp after updating pitch
     this.cameraPitch = Math.max(minPitch, Math.min(maxPitch, this.cameraPitch));
 
+    // store deltas for other systems
     this.mouseDeltaX += e.movementX;
     this.mouseDeltaY += e.movementY;
   };
+
   // --- Input Event Handlers ---
   private onKeyDown = (e: KeyboardEvent) => {
     if (this.ignoreKeys) return;

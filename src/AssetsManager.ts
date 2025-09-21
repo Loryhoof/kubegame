@@ -17,9 +17,10 @@ interface ColliderData {
 const base = import.meta.env.BASE_URL;
 
 const glbModels = [
-  { key: "boxman", path: `${base}boxman_2.glb` },
+  { key: "boxman", path: `${base}boxman2.glb` },
   { key: "car", path: `${base}car.glb` },
   { key: "ramp", path: `${base}ramp.glb` },
+  { key: "pistol", path: `${base}pistol.glb` },
 ];
 
 const colliderNames = ["ramp"];

@@ -12,6 +12,7 @@ import ChatManager from "./ChatManager";
 import ClientVehicle from "./ClientVehicle";
 import CameraManager from "./CameraManager";
 import DebugState from "./state/DebugState";
+import ClientWeapon from "./ClientWeapon";
 
 let world: World | null = null;
 
@@ -51,6 +52,9 @@ type NetworkPlayer = {
   controlledObject: any;
   lastProcessedInputSeq?: number;
   nickname: string;
+  leftHand: any;
+  rightHand: any;
+  viewQuaternion: { x: number; y: number; z: number; w: number };
 };
 
 let ping = 0;
@@ -199,6 +203,44 @@ function registerSocketEvents(world: World) {
           AudioManager.instance.playAudio("punch_impact", 0.5);
         }
       }
+    }
+  );
+
+  socket.on(
+    "register-hit",
+    (data: {
+      position: { x: number; y: number; z: number };
+      hitPlayer: string | null;
+    }) => {
+      if (data.hitPlayer) {
+        AudioManager.instance.playAudio("hitmarker", 0.2);
+        return;
+      }
+
+      world.createHitmarker(
+        new THREE.Vector3(data.position.x, data.position.y, data.position.z)
+      );
+
+      // const randomAudioList = ["impact_1", "impact_2"];
+      // AudioManager.instance.playAudio(
+      //   getRandomFromArray(randomAudioList),
+      //   0.0
+      // );
+    }
+  );
+
+  socket.on(
+    "create-hitmarker",
+    (data: { position: { x: number; y: number; z: number } }) => {
+      world.createHitmarker(
+        new THREE.Vector3(data.position.x, data.position.y, data.position.z)
+      );
+
+      // const randomAudioList = ["impact_1", "impact_2"];
+      // AudioManager.instance.playAudio(
+      //   getRandomFromArray(randomAudioList),
+      //   0.0
+      // );
     }
   );
 
@@ -462,6 +504,9 @@ function interpolatePlayers() {
         netPlayer.keys = pNew.keys;
         netPlayer.nickname = pNew.nickname;
 
+        // netPlayer.leftHand = pNew.leftHand;
+        // netPlayer.leftHand = pNew.leftHand;
+
         continue;
       }
 
@@ -514,6 +559,14 @@ function interpolatePlayers() {
         isSitting: pNew.isSitting,
         controlledObject: pNew.controlledObject,
         nickname: pNew.nickname,
+        leftHand: pNew.leftHand,
+        rightHand: pNew.rightHand,
+        camQuat: new THREE.Quaternion(
+          pNew.viewQuaternion.x,
+          pNew.viewQuaternion.y,
+          pNew.viewQuaternion.z,
+          pNew.viewQuaternion.w
+        ),
       });
     }
   }
@@ -732,61 +785,151 @@ function interpolateNPCs() {
 const smoothCameraPos = new THREE.Vector3();
 const smoothLookAt = new THREE.Vector3();
 
-function updateCameraFollow() {
+let recoilOffsetPitch = 0;
+let recoilOffsetYaw = 0;
+
+// function applyRecoil(delta: number) {
+//   // move camera instantly by current recoil
+//   InputManager.instance.cameraPitch -= recoilOffsetPitch * delta * 20;
+//   InputManager.instance.cameraYaw += recoilOffsetYaw * delta * 20;
+
+//   // decay recoil fast back to zero
+//   const decay = 85.0; // bigger = faster return
+//   recoilOffsetPitch = THREE.MathUtils.lerp(recoilOffsetPitch, 0, decay * delta);
+//   recoilOffsetYaw = THREE.MathUtils.lerp(recoilOffsetYaw, 0, decay * delta);
+// }
+
+let recoilTarget = 0;
+let recoilTime = 0;
+
+function shootRecoil(kick = 2.5) {
+  recoilTarget += kick; // every shot adds more vertical recoil
+  recoilTime = 0; // reset phase time
+}
+
+// --- RECOIL STATE (ADD THIS) ---
+const recoil = {
+  base: 0, // small persistent climb (radians)
+  kick: 0, // transient upward push (radians)
+  yawKick: 0, // transient yaw sway (radians)
+  appliedPitch: 0, // how much we've applied to camera so far
+  appliedYaw: 0,
+  lastSeenShotTime: 0, // last time we saw a local shot (ms)
+};
+
+// cheap exponential damper using "half-life" (how long to halve the error)
+function expDamp(
+  current: number,
+  target: number,
+  halfLife: number,
+  dt: number
+) {
+  const k = Math.pow(0.5, dt / Math.max(halfLife, 1e-5));
+  return target + (current - target) * k;
+}
+
+// call this once per *actual* shot
+function triggerShotRecoil() {
+  const kickUp = THREE.MathUtils.degToRad(2);
+  const residual = kickUp * 0.1; // how much stays after each shot
+  const yawMax = THREE.MathUtils.degToRad(1);
+
+  recoil.kick += kickUp;
+  recoil.base += residual; // baseline goes UP and stays there
+  recoil.yawKick += (Math.random() * 2 - 1) * yawMax;
+}
+
+function updateRecoil(delta: number, isAiming: boolean) {
+  // fast decay of transient kick
+  recoil.kick = expDamp(recoil.kick, 0, 0.08, delta);
+  recoil.yawKick = expDamp(recoil.yawKick, 0, 0.08, delta);
+
+  // total offset = baseline + transient
+  const wantPitch = recoil.base + recoil.kick;
+  const wantYaw = recoil.yawKick;
+
+  const dPitch = wantPitch - recoil.appliedPitch;
+  const dYaw = wantYaw - recoil.appliedYaw;
+
+  InputManager.instance.cameraPitch -= dPitch;
+  InputManager.instance.cameraYaw += dYaw;
+
+  recoil.appliedPitch = wantPitch;
+  recoil.appliedYaw = wantYaw;
+}
+let aimBlend = 0; // put this at the top with globals
+
+function getAimDistance(player: ClientPlayer): number {
+  if (player.rightHand.item) return 2;
+
+  return 3;
+}
+
+function updateCameraFollow(delta: number) {
   if (!NetworkManager.instance.localId) return;
   const player = world?.getPlayerById(NetworkManager.instance.localId);
   if (!player) return;
 
+  const keys = InputManager.instance.getState();
+  const aiming = keys.mouseRight;
   const playerPos = player.getPosition();
-  const distance = InputManager.instance.cameraDistance;
-  const height = 1;
+  const rightHandItem = player.rightHand?.item as ClientWeapon;
 
-  // Mobile joystick rotation
+  // --- Smooth aiming transition only ---
+  const aimTarget = aiming ? 1 : 0;
+  aimBlend = THREE.MathUtils.lerp(
+    aimBlend,
+    aimTarget,
+    1 - Math.exp(-delta * 20) // higher = faster blend
+  );
+
+  // --- Mobile joystick input (instant) ---
   if (isMobile()) {
     InputManager.instance.cameraYaw -= joystickX * mobileSens;
     InputManager.instance.cameraPitch -= joystickY * mobileSens;
   }
 
-  // Clamp pitch
-  const maxPitch = Math.PI / 3;
-  const minPitch = -Math.PI / 12;
-  InputManager.instance.cameraPitch = Math.max(
-    minPitch,
-    Math.min(maxPitch, InputManager.instance.cameraPitch)
+  // --- Camera rotation ---
+  const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    InputManager.instance.cameraYaw
+  );
+  const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(1, 0, 0),
+    -InputManager.instance.cameraPitch
+  );
+  const camRot = yawQuat.clone().multiply(pitchQuat);
+
+  // --- Distance + side offset with aim blend ---
+  const baseDistance = InputManager.instance.cameraDistance;
+  const aimDistance = getAimDistance(player);
+  const distance = THREE.MathUtils.lerp(baseDistance, aimDistance, aimBlend);
+
+  const sideOffsetAmount = rightHandItem
+    ? THREE.MathUtils.lerp(0, 0.5, aimBlend)
+    : 0;
+  const sideOffset = new THREE.Vector3(sideOffsetAmount, 0, 0).applyQuaternion(
+    yawQuat
   );
 
-  // Desired camera offset
-  const offsetX =
-    distance *
-    Math.sin(InputManager.instance.cameraYaw) *
-    Math.cos(InputManager.instance.cameraPitch);
-  const offsetY =
-    height + distance * Math.sin(InputManager.instance.cameraPitch);
-  const offsetZ =
-    distance *
-    Math.cos(InputManager.instance.cameraYaw) *
-    Math.cos(InputManager.instance.cameraPitch);
+  // --- Desired camera pos ---
+  const height = 1;
+  const backOffset = new THREE.Vector3(0, 0, distance).applyQuaternion(camRot);
+  const desiredCameraPos = playerPos
+    .clone()
+    .add(new THREE.Vector3(0, height, 0))
+    .add(sideOffset)
+    .add(backOffset);
+  const lookAtPoint = playerPos
+    .clone()
+    .add(new THREE.Vector3(0, height, 0))
+    .add(sideOffset);
 
-  const desiredCameraPos = new THREE.Vector3(
-    playerPos.x + offsetX,
-    playerPos.y + offsetY,
-    playerPos.z + offsetZ
-  );
+  updateRecoil(delta, aiming);
 
-  // Smooth camera position
-  smoothCameraPos.lerp(desiredCameraPos, 1);
-
-  // Smooth look-at target (reduces world jitter)
-  const desiredLookAt = new THREE.Vector3(
-    playerPos.x,
-    playerPos.y + height,
-    playerPos.z
-  );
-  smoothLookAt.lerp(desiredLookAt, 1);
-
-  // Apply
-  camera.position.copy(smoothCameraPos);
-  camera.lookAt(smoothLookAt);
+  // --- Apply instantly (no smoothing) ---
+  camera.position.copy(desiredCameraPos);
+  camera.lookAt(lookAtPoint);
 }
 
 // ---------------- Interactables ----------------
@@ -810,6 +953,10 @@ function checkPlayerInteractables(player: ClientPlayer, world: World) {
 
 // ---------------- UI ----------------
 function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
+  const showCrosshair =
+    player.rightHand.item != null &&
+    InputManager.instance.getState().mouseRight;
+
   const eventData = {
     networkId: NetworkManager.instance.localId,
     position: player.getPosition(),
@@ -817,6 +964,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
     coins: player.coins,
     playerCount: world?.players.size,
     ping: ping,
+    showCrosshair: showCrosshair,
   };
   window.dispatchEvent(new CustomEvent("player-update", { detail: eventData }));
   window.dispatchEvent(
@@ -843,6 +991,7 @@ function updateLocalCharacterPrediction(player: ClientPlayer, delta: number) {
       dt: FIXED_DT,
       keys,
       camQuat: camera.quaternion.clone(),
+      camPos: camera.position.clone(),
     };
     pendingInputs.push(input);
     socket.emit("playerInput", input);
@@ -1076,7 +1225,30 @@ function updatePlayerSeatTransform(
   player.setQuaternion(finalQuat);
 }
 
+// put these at the top of your file with other globals
+let prevFire = false;
+let recoilPitchOffset = 0;
+let recoilYawOffset = 0;
+
 function updateLocalPlayer(player: ClientPlayer, delta: number) {
+  const keys = InputManager.instance.getState();
+  const aiming = keys.mouseRight;
+  const shooting = keys.mouseLeft && aiming;
+  const shotPressed = shooting && !prevFire; // rising edge → one shot only
+
+  const rightHandItem = player.rightHand.item as ClientWeapon;
+
+  if (shotPressed && rightHandItem) {
+    const fired = rightHandItem.use();
+    if (fired) {
+      player.lastUseHandTime = Date.now();
+      triggerShotRecoil(); // only called when a real shot fired
+    }
+  }
+
+  prevFire = shooting; // store fire state for next frame
+
+  // --- Normal player movement prediction ---
   if (player.controlledObject) {
     const localVehicle = world?.getObjById(
       player.controlledObject.id,
@@ -1091,17 +1263,8 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
     if (seatIndex === -1) return;
 
     updatePlayerSeatTransform(player, localVehicle, seatIndex);
-
-    if (localVehicle.serverPos) {
-      if (DebugState.instance.showGhost) {
-        ghostMesh.position.copy(localVehicle.serverPos);
-        ghostMesh.quaternion.copy(localVehicle.serverQuaternion!);
-      }
-    }
-
     updateLocalVehiclePrediction(localVehicle, delta);
 
-    // Update all passengers, including remote ones, in the local vehicle
     for (
       let seatIndex = 0;
       seatIndex < localVehicle.seats.length;
@@ -1112,8 +1275,6 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
         updatePlayerSeatTransform(seat.seater, localVehicle, seatIndex);
       }
     }
-
-    // vehicle stuff
   } else {
     updateLocalCharacterPrediction(player, delta);
   }
@@ -1132,7 +1293,9 @@ function animate(world: World) {
 
   // --- 3) Update world & visuals ---
   world.update(delta);
-  updateCameraFollow();
+  updateCameraFollow(delta);
+  // updateRecoil(delta);
+
   interpolatePlayers();
   interpolateVehicles();
   interpolateNPCs();
