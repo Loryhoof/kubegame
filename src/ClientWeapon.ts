@@ -9,6 +9,7 @@ export default class ClientWeapon implements IHoldable {
   public sounds: Map<string, THREE.PositionalAudio> = new Map();
   public ammo: number = 0;
   public isReloading: boolean = false;
+  public capacity: number = 0;
 
   constructor(name: string, object: THREE.Object3D, cooldownTime: number = 50) {
     this.name = name;

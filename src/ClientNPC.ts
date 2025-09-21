@@ -4,6 +4,8 @@ import { AssetsManager } from "./AssetsManager";
 import AudioManager from "./AudioManager";
 import InputManager from "./InputManager";
 import FloatingText from "./FloatingText";
+import ClientPhysics, { PhysicsObject } from "./ClientPhysics";
+import { randFloat } from "three/src/math/MathUtils";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -13,11 +15,17 @@ type StateData = {
   quaternion: THREE.Quaternion;
   velocity: THREE.Vector3;
   color: string;
+  health: string;
   //health: number;
   //coins: number;
   // keys: any;
   //isSitting: boolean;
   //   controlledObject: { id: string } | null;
+};
+
+type RagdollPair = {
+  mesh: THREE.Mesh;
+  physics: PhysicsObject;
 };
 
 class ClientNPC {
@@ -46,6 +54,17 @@ class ClientNPC {
 
   public controlledObject: { id: string } | null = null;
 
+  private bones: Map<string, any> = new Map();
+  private skinnedMeshes: Map<string, any> = new Map();
+
+  private hasDied: boolean = false;
+
+  private ragdollPairs: RagdollPair[] = [];
+
+  private ragdollReady: boolean = false;
+
+  private passDone: boolean = false;
+
   constructor(
     networkId: string,
     color: string,
@@ -61,7 +80,10 @@ class ClientNPC {
     const modelAnims = AssetsManager.instance.getBoxmanClone()
       ?.animations as THREE.AnimationClip[];
 
+    const modelOffsetY = -0.9;
+
     this.model = modelScene;
+    this.model.position.y = modelOffsetY;
     this.mixer = new THREE.AnimationMixer(this.model);
 
     // Load animations
@@ -132,6 +154,14 @@ class ClientNPC {
     this.scene.add(this.dummy);
     this.dummy.add(this.model);
     this.boundingBox = new THREE.Box3();
+
+    // bones stuff
+    this.model.traverse((obj: any) => {
+      if (obj instanceof THREE.Bone) {
+        console.log(obj.name);
+        this.bones.set(obj.name, obj);
+      }
+    });
 
     // // Play default animations
     // this.animations.get("Idle")!.play();
@@ -206,12 +236,112 @@ class ClientNPC {
     return sprite;
   }
 
+  prepareRagdoll() {
+    if (this.ragdollReady) return;
+
+    // Map mesh names → controlling bone names
+    const boneMap: Record<string, string> = {
+      Head: "Bone007",
+      Torso: "Bone",
+      Arm_L: "Bone005",
+      Arm_R: "Bone002",
+      Leg_L: "Bone013",
+      Leg_R: "Bone009",
+    };
+
+    // per-part offsets to fine-tune ragdoll spawn positions
+    const offsetMap: Record<string, THREE.Vector3> = {
+      Head: new THREE.Vector3(0, 0.4, 0), // raise head a bit
+      Torso: new THREE.Vector3(0, 0, 0), // no offset
+      Arm_L: new THREE.Vector3(-0.05, 0, 0), // left arm tweak
+      Arm_R: new THREE.Vector3(0.05, 0, 0), // right arm tweak
+      Leg_L: new THREE.Vector3(-0.05, -0.3, 0), // adjust leg pivot
+      Leg_R: new THREE.Vector3(0.05, -0.3, 0),
+    };
+
+    this.skinnedMeshes.forEach((skin: THREE.SkinnedMesh) => {
+      // 1. Find controlling bone for this part
+      const boneName = boneMap[skin.name];
+      const bone = this.bones.get(boneName);
+
+      if (!bone) {
+        console.warn(`No bone found for ${skin.name}`);
+        return;
+      }
+
+      // 2. Get bone's world transform
+      const worldPos = new THREE.Vector3();
+      const worldQuat = new THREE.Quaternion();
+      bone.getWorldPosition(worldPos);
+      bone.getWorldQuaternion(worldQuat);
+
+      // apply custom offset in bone space
+      const localOffset = offsetMap[skin.name] || new THREE.Vector3();
+      const offsetWorld = localOffset.clone();
+      worldPos.add(offsetWorld);
+
+      // 3. Clone geometry & center its pivot so it rotates correctly
+      const geometry = skin.geometry.clone();
+      geometry.computeBoundingBox();
+      const center = new THREE.Vector3();
+      geometry.boundingBox!.getCenter(center);
+      geometry.translate(-center.x, -center.y, -center.z);
+
+      // 4. Spawn rigidbody at bone position/rotation
+      const physics = ClientPhysics.instance.createDynamicBox(
+        worldPos.clone(),
+        new THREE.Vector3(0.1, 0.1, 0.1)
+      );
+
+      const forceStrength = randFloat(0.01, 0.02);
+      const randomDir = new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2, // upward bias
+        Math.random() * 2 - 1
+      ).normalize();
+
+      const impulse = {
+        x: randomDir.x * forceStrength,
+        y: randomDir.y * forceStrength,
+        z: randomDir.z * forceStrength,
+      };
+
+      physics.rigidBody.applyImpulse(impulse, true);
+
+      // 5. Create visual mesh at same position
+      const mesh = new THREE.Mesh(geometry, skin.material);
+      mesh.position.copy(worldPos);
+
+      const skinQuat = new THREE.Quaternion();
+      skin.getWorldQuaternion(skinQuat);
+
+      mesh.quaternion.copy(skinQuat);
+      this.scene.add(mesh);
+
+      // 6. Store pair for update loop
+      this.ragdollPairs.push({ mesh, physics });
+    });
+
+    // Hide original model so only ragdoll parts are visible
+    this.dummy.visible = false;
+    this.ragdollReady = true;
+  }
+
+  cleanup() {
+    this.ragdollPairs.forEach((pair) => {
+      this.scene.remove(pair.mesh);
+      ClientPhysics.instance.remove(pair.physics);
+    });
+
+    this.ragdollPairs = [];
+  }
+
   setState(state: StateData) {
     const {
       position,
       quaternion,
       color,
-      //   health,
+      health,
       //   coins,
       velocity,
       //   keys,
@@ -220,10 +350,12 @@ class ClientNPC {
     } = state;
 
     // this.coins = coins;
+    this.health = parseInt(health);
     this.color = color;
     this.velocity.copy(velocity);
     // this.health = health;
     this.dummy.position.copy(position);
+
     // this.keys = keys;
     // this.isSitting = isSitting;
 
@@ -257,6 +389,8 @@ class ClientNPC {
               color: skinColor,
             });
           }
+
+          this.skinnedMeshes.set(item.name, item);
         }
       });
       this.hasInit = true;
@@ -403,9 +537,35 @@ class ClientNPC {
   }
 
   update(delta: number) {
-    this.updateAnimationState(delta);
-    this.updateAudio();
-    this.mixer.update(delta);
+    if (this.ragdollReady) {
+      this.ragdollPairs.forEach((pair, index) => {
+        const rbPos = pair.physics.rigidBody.translation();
+        const rbRot = pair.physics.rigidBody.rotation();
+
+        pair.mesh.position.copy(rbPos);
+        pair.mesh.quaternion.copy(rbRot);
+      });
+    }
+
+    if (this.health <= 0) {
+      if (!this.hasDied) {
+        this.prepareRagdoll();
+        this.hasDied = true;
+      }
+
+      return;
+    }
+
+    // if (this.health == 100 && this.hasDied) {
+    //   this.hasDied = false;
+    //   this.ragdollPairs = [];
+    // }
+
+    if (!this.hasDied) {
+      this.updateAnimationState(delta);
+      this.updateAudio();
+      this.mixer.update(delta);
+    }
 
     // if (!this.isLocalPlayer && this.infoSprite) {
     //   // let color = "#ffffff";

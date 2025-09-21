@@ -40,11 +40,21 @@ type StateData = {
   nickname: string;
   leftHand: {
     side: "left" | "right";
-    item?: { name: string; ammo: string; isReloading: boolean };
+    item?: {
+      name: string;
+      ammo: number;
+      capacity: number;
+      isReloading: boolean;
+    };
   };
   rightHand: {
     side: "left" | "right";
-    item?: { name: string; ammo: string; isReloading: boolean };
+    item?: {
+      name: string;
+      ammo: number;
+      capacity: number;
+      isReloading: boolean;
+    };
   };
   camQuat: THREE.Quaternion;
 };
@@ -92,6 +102,8 @@ class ClientPlayer {
   private jumpCooldown: number = 200; // ms between jumps
   private coyoteTime: number = 100; // ms grace period after leaving ground
 
+  private debugCapsule: THREE.Mesh;
+
   // network stuff
   public nickname: string | null = null;
 
@@ -121,6 +133,21 @@ class ClientPlayer {
   ) {
     // debug stuff
 
+    let halfHeight = 0.55; // weird s
+    let radius = 0.275;
+
+    this.debugCapsule = new THREE.Mesh(
+      new THREE.CapsuleGeometry(radius, halfHeight * 2),
+      new THREE.MeshStandardMaterial({
+        color: 0x00ff00,
+        opacity: 0.5,
+        transparent: true,
+      })
+    );
+
+    this.debugCapsule.visible = false;
+
+    scene.add(this.debugCapsule);
     //
     this.world = world;
     this.networkId = networkId;
@@ -132,7 +159,10 @@ class ClientPlayer {
     const modelAnims = AssetsManager.instance.getBoxmanClone()
       ?.animations as THREE.AnimationClip[];
 
+    const modelOffsetY = -0.9;
+
     this.model = modelScene;
+    this.model.position.y = modelOffsetY;
     this.mixer = new THREE.AnimationMixer(this.model);
 
     // Load animations
@@ -613,7 +643,7 @@ class ClientPlayer {
 
   handleHandItem(
     side: "left" | "right",
-    item: { name: string; ammo: string; isReloading: boolean }
+    item: { name: string; ammo: number; capacity: number; isReloading: boolean }
   ) {
     const hand = side == "left" ? this.leftHand : (this.rightHand as Hand);
 
@@ -623,7 +653,8 @@ class ClientPlayer {
 
         const weapon = hand.item as ClientWeapon;
 
-        weapon.ammo = parseInt(item.ammo);
+        weapon.ammo = item.ammo;
+        weapon.capacity = item.capacity;
         weapon.isReloading = item.isReloading;
       } else {
         // create new
@@ -982,6 +1013,8 @@ class ClientPlayer {
 
     this.updateAnimationState(delta);
     this.updateHands();
+
+    this.debugCapsule.position.copy(this.dummy.position);
 
     // if (leftArm && rightArm) {
     //   const baseRot = -Math.PI / 2;

@@ -1,6 +1,11 @@
 import "../../index.css";
 import React, { useState, useEffect } from "react";
 
+type WeaponData = {
+  ammo: number;
+  capacity: number;
+};
+
 type EventData = {
   networkId: string;
   position: { x: number; y: number; z: number };
@@ -8,6 +13,7 @@ type EventData = {
   health: number;
   playerCount: number;
   ping: number;
+  weapon: WeaponData;
 };
 
 export default function HUD() {
@@ -17,6 +23,7 @@ export default function HUD() {
   const [health, setHealth] = useState(100);
   const [coins, setCoins] = useState(0);
   const [ping, setPing] = useState(0);
+  const [weaponData, setWeaponData] = useState<WeaponData | null>(null);
 
   useEffect(() => {
     function onPlayerUpdate(e: CustomEvent<EventData>) {
@@ -27,6 +34,8 @@ export default function HUD() {
       setHealth(eventDetails.health);
       setPlayerCount(eventDetails.playerCount);
       setPing(eventDetails.ping);
+
+      setWeaponData(eventDetails.weapon);
     }
 
     window.addEventListener("player-update", onPlayerUpdate as EventListener);
@@ -62,6 +71,13 @@ export default function HUD() {
         <div style={boxStyle}>Health: {health.toFixed(0)}</div>
         <div style={boxStyle}>Coins: {coins}</div>
       </div>
+
+      {/* Weapon data display */}
+      {weaponData && (
+        <div className="absolute left-1/2 bottom-5 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none">
+          {weaponData.ammo}/{weaponData.capacity}
+        </div>
+      )}
     </>
   );
 }

@@ -12,8 +12,11 @@ const audioList = [
   { key: "pistol_shot_2", url: "audio/weapon/pistol/2.mp3" },
   { key: "impact_1", url: "audio/impact/1.mp3" },
   { key: "impact_2", url: "audio/impact/2.mp3" },
+  { key: "impact_3", url: "audio/impact/3.mp3" },
+  { key: "impact_3", url: "audio/impact/4.mp3" },
   { key: "hitmarker", url: "audio/hitmarker.mp3" },
   { key: "empty_shot", url: "audio/empty-pistol.mp3" },
+  { key: "impact_headshot", url: "audio/impact_headshot.mp3" },
 ];
 
 export default class AudioManager {
@@ -67,7 +70,7 @@ export default class AudioManager {
     });
   }
 
-  playAudio(key: string, volume: number = 1) {
+  playAudio(key: string, volume: number = 1, pitch: number = 1) {
     const buffer = this.audioBuffers.get(key);
     if (!buffer) return;
 
@@ -80,6 +83,8 @@ export default class AudioManager {
 
     if (sound.isPlaying) sound.stop();
     sound.setVolume(volume);
+    sound.setDetune(pitch);
+
     sound.play();
   }
 }

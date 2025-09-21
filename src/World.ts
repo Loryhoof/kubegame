@@ -569,6 +569,11 @@ export default class World {
     }
   }
 
+  addNPC(data: any) {
+    const npcObject = new ClientNPC(data.id, data.color, this.scene, false);
+    this.npcs.push(npcObject);
+  }
+
   addVehicle(data: any) {
     const { id, position, quaternion, wheels, seats } = data;
 
@@ -708,9 +713,24 @@ export default class World {
     }
   }
 
+  removeNPCByUUID(uuid: string) {
+    console.log("wanting to remove npc");
+    const index = this.npcs.findIndex((npc) => npc.networkId === uuid);
+    console.log(index);
+    if (index !== -1) {
+      const npc = this.npcs[index] as ClientNPC;
+
+      npc.cleanup();
+      this.scene.remove(npc.dummy); // Remove mesh from scene
+      // ClientPhysics.instance.remove(npc.phy)
+      this.npcs.splice(index, 1); // Remove entity from array
+    }
+  }
+
   getObjById(id: string, array: any[]) {
     for (const item of array) {
       if (id === item.id) return item;
+      if (id == item.networkId) return item;
     }
     return null;
   }
@@ -770,6 +790,7 @@ export default class World {
     });
 
     this.npcs.forEach((npc: ClientNPC) => {
+      // console.log(npc.getPosition(), npc.networkId);
       npc.update(delta);
     });
 

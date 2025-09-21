@@ -43,11 +43,77 @@ export default class ClientPhysics {
       .lockRotations(); //kinematicVelocityBased
     let rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
 
-    let halfHeight = 0.2; // weird s
+    let halfHeight = 0.55; // weird s
     let radius = 0.275;
 
     let capsuleColDesc = RAPIER.ColliderDesc.capsule(halfHeight, radius);
     let collider = this.physicsWorld!.createCollider(capsuleColDesc, rigidBody);
+
+    return { rigidBody, collider };
+  }
+
+  createSphericalJoint(
+    a: PhysicsObject,
+    b: PhysicsObject,
+    localAnchorA: Vector3,
+    localAnchorB: Vector3
+  ) {
+    if (!this.physicsWorld) return;
+
+    const params = RAPIER.JointData.spherical(
+      { x: localAnchorA.x, y: localAnchorA.y, z: localAnchorA.z },
+      { x: localAnchorB.x, y: localAnchorB.y, z: localAnchorB.z }
+    );
+
+    this.physicsWorld.createImpulseJoint(
+      params,
+      a.rigidBody,
+      b.rigidBody,
+      true
+    );
+  }
+
+  // createFixedJoint(
+  //   a: PhysicsObject,
+  //   b: PhysicsObject,
+  //   localAnchorA: Vector3,
+  //   localAnchorB: Vector3
+  // ) {
+  //   if (!this.physicsWorld) return;
+
+  //   const params = RAPIER.JointData.fixed(
+  //     { x: localAnchorA.x, y: localAnchorA.y, z: localAnchorA.z },
+  //     { x: localAnchorB.x, y: localAnchorB.y, z: localAnchorB.z },
+  //     { x: 0, y: 0, z: 0, w: 1 } // identity rotation
+  //   );
+
+  //   this.physicsWorld.createImpulseJoint(params, a.rigidBody, b.rigidBody, true);
+  // }
+
+  createDynamicBox(position: Vector3, scale: Vector3): PhysicsObject {
+    const rbDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(
+      position.x,
+      position.y,
+      position.z
+    );
+    const rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
+
+    const colDesc = RAPIER.ColliderDesc.cuboid(scale.x, scale.y, scale.z);
+    const collider = this.physicsWorld!.createCollider(colDesc, rigidBody);
+
+    return { rigidBody, collider };
+  }
+
+  createDynamicBall(position: Vector3, radius: number): PhysicsObject {
+    const rbDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(
+      position.x,
+      position.y,
+      position.z
+    );
+    const rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
+
+    const colDesc = RAPIER.ColliderDesc.ball(radius);
+    const collider = this.physicsWorld!.createCollider(colDesc, rigidBody);
 
     return { rigidBody, collider };
   }

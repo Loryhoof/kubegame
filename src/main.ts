@@ -13,6 +13,7 @@ import ClientVehicle from "./ClientVehicle";
 import CameraManager from "./CameraManager";
 import DebugState from "./state/DebugState";
 import ClientWeapon from "./ClientWeapon";
+import { randFloat } from "three/src/math/MathUtils";
 
 let world: World | null = null;
 
@@ -152,6 +153,10 @@ function registerSocketEvents(world: World) {
     world.addVehicle(data);
   });
 
+  socket.on("addNPC", (data: any) => {
+    world.addNPC(data);
+  });
+
   socket.on("interactableCreated", (data: any) => {
     world.createInteractable(data);
   });
@@ -189,6 +194,10 @@ function registerSocketEvents(world: World) {
     world.removeVehicleByUUID(uuid);
   });
 
+  socket.on("npcRemoved", (uuid: string) => {
+    world.removeNPCByUUID(uuid);
+  });
+
   socket.on(
     "user_action",
     (data: { id: string; type: string; hasHit: boolean }) => {
@@ -211,8 +220,22 @@ function registerSocketEvents(world: World) {
     (data: {
       position: { x: number; y: number; z: number };
       hitPlayer: string | null;
+      hitBodyPart: "head" | "torso" | "legs" | null;
     }) => {
+      const randomAudioList = ["impact_1", "impact_2", "impact_3", "impact_3"];
+
       if (data.hitPlayer) {
+        const bp = data.hitBodyPart;
+
+        if (bp == "head") {
+          AudioManager.instance.playAudio(
+            "impact_headshot",
+            0.1,
+            randFloat(1, 1000)
+          );
+          return;
+        }
+
         AudioManager.instance.playAudio("hitmarker", 0.2);
         return;
       }
@@ -220,12 +243,6 @@ function registerSocketEvents(world: World) {
       world.createHitmarker(
         new THREE.Vector3(data.position.x, data.position.y, data.position.z)
       );
-
-      // const randomAudioList = ["impact_1", "impact_2"];
-      // AudioManager.instance.playAudio(
-      //   getRandomFromArray(randomAudioList),
-      //   0.0
-      // );
     }
   );
 
@@ -729,7 +746,7 @@ function interpolateNPCs() {
       const pOld = older.npcs[i] as any;
       const pNew = newer.npcs[i] || pOld;
 
-      const clientNPC = world?.getObjById(pOld.networkId, world.npcs);
+      const clientNPC = world?.getObjById(pOld.id, world.npcs);
       if (!clientNPC) return;
 
       const posOld = new THREE.Vector3(
@@ -766,6 +783,7 @@ function interpolateNPCs() {
         new THREE.Vector3(pNew.velocity.x, pNew.velocity.y, pNew.velocity.z),
         t
       );
+
       clientNPC.setState({
         position: targetPos,
         quaternion: targetQuat,
@@ -913,7 +931,7 @@ function updateCameraFollow(delta: number) {
   );
 
   // --- Desired camera pos ---
-  const height = 1;
+  const height = 0.75;
   const backOffset = new THREE.Vector3(0, 0, distance).applyQuaternion(camRot);
   const desiredCameraPos = playerPos
     .clone()
@@ -965,6 +983,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
     playerCount: world?.players.size,
     ping: ping,
     showCrosshair: showCrosshair,
+    weapon: player.rightHand.item,
   };
   window.dispatchEvent(new CustomEvent("player-update", { detail: eventData }));
   window.dispatchEvent(
