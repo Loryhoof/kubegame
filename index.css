@@ -55,3 +55,50 @@ body {
 .fade-out {
   animation: fadeOut 0.5s forwards;
 }
+
+@keyframes reloadPixel {
+  0% {
+    width: 0%;
+  }
+  20% {
+    width: 25%;
+  }
+  40% {
+    width: 50%;
+  }
+  60% {
+    width: 75%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-reload-pixel {
+  animation: reloadPixel 1s steps(5) forwards;
+}
+
+.pixel-bar {
+  border-radius: 2px;
+  image-rendering: pixelated;
+}
+
+.pixel-text {
+  font-family: monospace;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+  letter-spacing: 1px;
+}
+
+.pixel-text {
+  font-family: "Press Start 2P", monospace; /* Or any pixel font */
+  letter-spacing: 1px;
+}
+
+@keyframes reload-pixel {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

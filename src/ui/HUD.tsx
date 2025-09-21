@@ -1,9 +1,12 @@
-import "../../index.css";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+
+import { BiCoinStack } from "react-icons/bi";
 
 type WeaponData = {
   ammo: number;
   capacity: number;
+  isReloading: boolean;
+  reloadProgress?: number; // 0 → 1 for slider fill
 };
 
 type EventData = {
@@ -14,88 +17,109 @@ type EventData = {
   playerCount: number;
   ping: number;
   weapon: WeaponData;
+  ammo: number;
 };
 
 export default function HUD() {
-  const [networkId, setNetworkId] = useState("Server: connecting...");
-  const [playerCount, setPlayerCount] = useState(0);
-  const [position, setPosition] = useState({ x: 0, y: 0, z: 0 });
-  const [health, setHealth] = useState(100);
-  const [coins, setCoins] = useState(0);
-  const [ping, setPing] = useState(0);
-  const [weaponData, setWeaponData] = useState<WeaponData | null>(null);
+  const [state, setState] = useState({
+    networkId: "Server: connecting...",
+    playerCount: 0,
+    position: { x: 0, y: 0, z: 0 },
+    health: 100,
+    coins: 0,
+    ping: 0,
+    weaponData: null as WeaponData | null,
+    ammo: 0,
+  });
+
+  const onPlayerUpdate = useCallback((e: CustomEvent<EventData>) => {
+    const d = e.detail;
+    setState({
+      networkId: d.networkId,
+      position: d.position,
+      coins: d.coins,
+      health: d.health,
+      playerCount: d.playerCount,
+      ping: d.ping,
+      ammo: d.ammo,
+      weaponData: d.weapon,
+    });
+  }, []);
 
   useEffect(() => {
-    function onPlayerUpdate(e: CustomEvent<EventData>) {
-      const eventDetails = e.detail;
-      setNetworkId(eventDetails.networkId);
-      setPosition({ ...eventDetails.position });
-      setCoins(eventDetails.coins);
-      setHealth(eventDetails.health);
-      setPlayerCount(eventDetails.playerCount);
-      setPing(eventDetails.ping);
-
-      setWeaponData(eventDetails.weapon);
-    }
-
     window.addEventListener("player-update", onPlayerUpdate as EventListener);
-
-    return () => {
+    return () =>
       window.removeEventListener(
         "player-update",
         onPlayerUpdate as EventListener
       );
-    };
-  }, []);
+  }, [onPlayerUpdate]);
+
+  const { playerCount, ping, health, coins, position, weaponData, ammo } =
+    state;
 
   return (
     <>
-      {/* HUD stats */}
-      <div
-        style={{
-          position: "fixed",
-          top: 10,
-          left: 10,
-          zIndex: 1000,
-          fontSize: 14,
-          color: "white",
-        }}
-      >
-        <div style={boxStyle}>Ping: {ping} ms</div>
-        <div style={boxStyle}>{networkId}</div>
-        <div style={boxStyle}>{playerCount} Online</div>
-        <div style={boxStyle}>
+      {/* Top Left: Players & Ping */}
+      <div className="fixed top-3 left-3 z-[1000] min-w-[150px] bg-black/50 rounded-md p-2 text-white text-xs leading-[1.6] space-y-1">
+        <div className="flex justify-between text-gray-200">
+          <span>{playerCount} online</span>
+          <span>{ping} ms</span>
+        </div>
+
+        <div className="text-gray-300 text-[11px]">
           Pos: {position.x.toFixed(0)}, {position.y.toFixed(0)},{" "}
           {position.z.toFixed(0)}
         </div>
-        <div style={boxStyle}>Health: {health.toFixed(0)}</div>
-        <div style={boxStyle}>Coins: {coins}</div>
       </div>
 
-      {/* Weapon data display */}
+      {/* Top Right: Coins */}
+      <div className="fixed top-3 right-3 z-[1000] bg-black/50 rounded-md px-3 py-1 text-yellow-400 font-bold text-sm flex items-center gap-1 shadow-lg border border-yellow-500/30">
+        {/* <img
+          src="/icons/coin.png"
+          alt="coin"
+          className="w-4 h-4 inline-block"
+        /> */}
+
+        <BiCoinStack />
+
+        {coins}
+      </div>
+
+      {/* Weapon Info */}
       {weaponData && (
-        <div className="absolute left-1/2 bottom-5 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none">
-          {weaponData.ammo}/{weaponData.capacity}
+        <div className="absolute left-1/2 bottom-20 -translate-x-1/2 z-[1000] text-center w-28">
+          <div className="relative w-full h-9 bg-black/40 rounded-sm flex items-center justify-center overflow-hidden border border-white/10">
+            <span className="text-white text-lg font-bold z-10">
+              {weaponData.ammo}/{ammo}
+            </span>
+            {weaponData.isReloading && (
+              <div className="absolute bottom-0 left-0 h-1 w-full bg-yellow-500 animate-reload-pixel  z-0">
+                <div
+                  className="h-full bg-yellow-400 transition-all duration-100"
+                  style={{
+                    width: `${(weaponData.reloadProgress ?? 0) * 100}%`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      {/* Health Bar */}
+      <div className="absolute left-1/2 bottom-10 -translate-x-1/2 z-[1000] w-44 h-3 bg-black/60 border border-white/20 rounded-sm overflow-hidden shadow-md">
+        <div
+          className={`h-full transition-all duration-200 ${
+            health > 50
+              ? "bg-green-500"
+              : health > 25
+              ? "bg-yellow-400"
+              : "bg-red-500"
+          }`}
+          style={{ width: `${Math.max(0, Math.min(100, health))}%` }}
+        />
+      </div>
     </>
   );
 }
-
-const boxStyle: React.CSSProperties = {
-  background: "rgba(0, 0, 0, 0.5)",
-  padding: "5px 10px",
-  borderRadius: "5px",
-  marginBottom: "5px",
-  userSelect: "none",
-};
-
-// Add this to your CSS somewhere (e.g., index.css):
-/*
-@keyframes fadeInOut {
-  0% { opacity: 0; transform: translateY(-10px); }
-  10% { opacity: 1; transform: translateY(0); }
-  80% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-10px); }
-}
-*/

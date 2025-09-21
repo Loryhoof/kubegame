@@ -18,7 +18,7 @@ import { randFloat } from "three/src/math/MathUtils";
 let world: World | null = null;
 
 export type ServerNotification = {
-  type: "error" | "success" | "info";
+  type: "error" | "success" | "info" | "achievement";
   content: string;
   duration?: number;
 };
@@ -48,6 +48,7 @@ type NetworkPlayer = {
   color: string;
   health: number;
   coins: number;
+  ammo: number;
   keys: any;
   isSitting: boolean;
   controlledObject: any;
@@ -142,6 +143,9 @@ function registerSocketEvents(world: World) {
   });
 
   socket.on("server-notification", (data: ServerNotification) => {
+    if (data.type == "achievement")
+      AudioManager.instance.playAudio("achievement");
+
     createToast(data);
   });
 
@@ -446,6 +450,8 @@ function reconcileLocalVehicle(serverVehicle: ServerVehicle) {
     serverVehicle.angularVelocity.z
   );
 
+  localVehicle.hornPlaying = serverVehicle.hornPlaying;
+
   if (serverVehicle.lastProcessedInputSeq !== undefined) {
     pendingVehicleInputs = pendingVehicleInputs.filter(
       (input) => input.seq > serverVehicle.lastProcessedInputSeq
@@ -571,6 +577,7 @@ function interpolatePlayers() {
         color: pNew.color,
         health: pNew.health,
         coins: pNew.coins,
+        ammo: pNew.ammo,
         velocity: targetVel,
         keys: pNew.keys,
         isSitting: pNew.isSitting,
@@ -984,6 +991,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
     ping: ping,
     showCrosshair: showCrosshair,
     weapon: player.rightHand.item,
+    ammo: player.ammo,
   };
   window.dispatchEvent(new CustomEvent("player-update", { detail: eventData }));
   window.dispatchEvent(

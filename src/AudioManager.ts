@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import NetworkManager from "./NetworkManager";
 
 const audioList = [
   { key: "huh_1", url: "audio/huh_1.mp3" },
@@ -17,6 +18,9 @@ const audioList = [
   { key: "hitmarker", url: "audio/hitmarker.mp3" },
   { key: "empty_shot", url: "audio/empty-pistol.mp3" },
   { key: "impact_headshot", url: "audio/impact_headshot.mp3" },
+  { key: "pistol_reload", url: "audio/pistol_reload.mp3" },
+
+  { key: "achievement", url: "audio/achievement.mp3" },
 ];
 
 export default class AudioManager {

@@ -34,6 +34,7 @@ type StateData = {
   color: string;
   health: number;
   coins: number;
+  ammo: number;
   keys: any;
   isSitting: boolean;
   controlledObject: { id: string } | null;
@@ -110,6 +111,8 @@ class ClientPlayer {
   private bones: Map<string, any> = new Map();
 
   public lastUseHandTime: number = -Infinity;
+
+  public ammo: number = 0;
 
   // hands
 
@@ -372,7 +375,7 @@ class ClientPlayer {
 
     if (canJump) {
       this.lastJumpTime = now;
-      this.physicsObject.rigidBody.applyImpulse({ x: 0, y: 0.8, z: 0 }, true);
+      this.physicsObject.rigidBody.applyImpulse({ x: 0, y: 1.5, z: 0 }, true);
     }
   }
 
@@ -566,6 +569,7 @@ class ClientPlayer {
       color,
       health,
       coins,
+      ammo,
       velocity,
       keys,
       isSitting,
@@ -590,6 +594,7 @@ class ClientPlayer {
 
     this.controlledObject = controlledObject;
     this.nickname = nickname;
+    this.ammo = ammo;
 
     // Smooth rotation
     this.dummy.quaternion.slerp(
@@ -656,6 +661,8 @@ class ClientPlayer {
         weapon.ammo = item.ammo;
         weapon.capacity = item.capacity;
         weapon.isReloading = item.isReloading;
+
+        if (weapon.isReloading) weapon.reload();
       } else {
         // create new
         const mesh = AssetsManager.instance.models.get("pistol")!.scene.clone();
@@ -675,6 +682,7 @@ class ClientPlayer {
       color,
       health,
       coins,
+      ammo,
       velocity,
       keys,
       isSitting,
@@ -698,6 +706,7 @@ class ClientPlayer {
     this.controlledObject = controlledObject;
 
     this.nickname = nickname;
+    this.ammo = ammo;
 
     if (leftHand) {
       const { side, item } = leftHand;

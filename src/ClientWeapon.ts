@@ -24,6 +24,7 @@ export default class ClientWeapon implements IHoldable {
     const listener = audioManager.getListener();
 
     const pistolBuffer = audioManager.getBufferByName("pistol_shot_1");
+    const reloadBuffer = audioManager.getBufferByName("pistol_reload");
     const emptyBuffer = audioManager.getBufferByName("empty_shot");
 
     const pistolSound = new THREE.PositionalAudio(listener)
@@ -34,17 +35,35 @@ export default class ClientWeapon implements IHoldable {
       .setVolume(0.1)
       .setLoop(false);
 
+    const reloadSound = new THREE.PositionalAudio(listener)
+      .setVolume(0.2)
+      .setLoop(false);
+
     if (pistolBuffer) pistolSound.setBuffer(pistolBuffer);
     if (emptyBuffer) emptySound.setBuffer(emptyBuffer);
+    if (reloadBuffer) reloadSound.setBuffer(reloadBuffer);
 
     this.sounds.set("pistol_shot_1", pistolSound);
     this.sounds.set("empty_shot", emptySound);
+    this.sounds.set("pistol_reload", reloadSound);
 
-    this.object.add(pistolSound, emptySound);
+    this.object.add(pistolSound, emptySound, reloadSound);
   }
 
   equip(): void {}
   unequip(): void {}
+
+  reload(): void {
+    if (!this.isReloading) return;
+
+    const reloadSound = this.sounds.get("pistol_reload");
+
+    if (!reloadSound) return;
+
+    if (reloadSound.isPlaying) return;
+
+    reloadSound.play();
+  }
 
   use(): boolean {
     if (this.ammo <= 0) {
@@ -55,6 +74,8 @@ export default class ClientWeapon implements IHoldable {
       }
       return false; // nothing fired
     }
+
+    if (this.isReloading) return false;
 
     this.ammo--; // consume ammo only if shot fired
 

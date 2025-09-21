@@ -215,7 +215,7 @@ export default class ClientVehicle {
     this.mesh.position.copy(networkPosition);
     this.mesh.quaternion.copy(networkQuaternion);
 
-    // this.hornPlaying = hornPlaying;
+    this.hornPlaying = hornPlaying;
 
     // this.seats = networkSeats;
 
@@ -337,9 +337,9 @@ export default class ClientVehicle {
 
     const horn = this.sounds.get("horn");
     if (this.hornPlaying) {
-      if (horn?.isPlaying) return;
-
-      horn?.play();
+      if (!horn?.isPlaying) {
+        horn?.play();
+      }
     } else {
       horn?.stop();
     }
