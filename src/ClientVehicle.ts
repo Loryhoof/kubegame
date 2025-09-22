@@ -22,6 +22,7 @@ export type VehicleControls = {
   throttle: number;
   brake: number;
   steer: number;
+  handbrake: number;
 };
 
 export default class ClientVehicle {
@@ -54,7 +55,19 @@ export default class ClientVehicle {
   public serverLinearVelocity: THREE.Vector3 | null = null;
   public serverAngularVelocity: THREE.Vector3 | null = null;
 
-  public controls: VehicleControls = { throttle: 0, brake: 0, steer: 0 };
+  public predictedPos: THREE.Vector3 | null = null;
+  public predictedQuat: THREE.Quaternion | null = null;
+
+  private lastCarHitTime: number = -Infinity;
+
+  private lastHits: Map<number, number> = new Map(); // colliderHandle → last hit time
+
+  public controls: VehicleControls = {
+    throttle: 0,
+    brake: 0,
+    steer: 0,
+    handbrake: 0,
+  };
 
   public lastServerTime: number = 0;
 
@@ -62,19 +75,23 @@ export default class ClientVehicle {
 
   private prevSeats: (ClientPlayer | null)[] = [];
 
+  private scene: THREE.Scene;
+
   constructor(
     id: string,
     position: THREE.Vector3,
     quaternion: THREE.Quaternion,
     visualWheels: VisualWheel[],
     seats: Seat[],
-    isLocal: boolean
+    isLocal: boolean,
+    scene: THREE.Scene
   ) {
     this.id = id;
     this.position = position;
     this.quaternion = quaternion;
     this.seats = seats;
     this.isLocal = isLocal;
+    this.scene = scene;
 
     if (this.isLocal) {
       this.physicsObject = ClientPhysics.instance.createCar(
@@ -175,6 +192,16 @@ export default class ClientVehicle {
     this.initAudio();
   }
 
+  getSpeed() {
+    if (!this.physicsObject) return 0;
+
+    return new THREE.Vector3(
+      this.physicsObject!.rigidBody.linvel().x,
+      this.physicsObject!.rigidBody.linvel().y,
+      this.physicsObject!.rigidBody.linvel().z
+    ).length();
+  }
+
   initAudio() {
     const audioManager = AudioManager.instance;
     const listener = audioManager.getListener();
@@ -264,6 +291,16 @@ export default class ClientVehicle {
       console.log("Local player entered vehicle → enable driving mode");
     }
 
+    // this.mesh.add(player.dummy);
+    // const extraRot = new THREE.Quaternion().setFromAxisAngle(
+    //   new THREE.Vector3(0, 1, 0),
+    //   Math.PI
+    // );
+    // const finalQuat = this.mesh.quaternion.clone().multiply(extraRot);
+
+    // player.dummy.position.copy(this.seats[seatIndex].position);
+    // player.dummy.quaternion.copy(finalQuat);
+
     //player.controlledObject = this;
   }
 
@@ -282,6 +319,8 @@ export default class ClientVehicle {
       // Switch back to on-foot camera
       console.log("Local player exited vehicle → back to walking mode");
     }
+
+    // this.scene.add(player.dummy);
   }
 
   updateVisualWheels() {
@@ -301,17 +340,46 @@ export default class ClientVehicle {
   predictMovementCustom(keys: any) {
     if (!keys) return;
 
-    const throttle = keys.w ? 1 : keys.s ? -1 : 0; // forward/back
-    const brake = keys[" "] ? 1 : 0; // space = brake
+    let throttle = 0;
+    let brake = 0;
     let steer = 0;
-    if (keys.a) steer = 1; // left
-    else if (keys.d) steer = -1; // right
+    let handbrake = 0;
 
-    this.controls = { throttle, brake, steer };
+    // --- Get forward velocity along car's forward direction ---
+    let forwardVel = 0;
+    if (this.physicsObject) {
+      const vel = this.physicsObject.rigidBody.linvel();
+      // project world velocity onto car's local forward vector
+      const forwardDir = new THREE.Vector3(0, 0, 1).applyQuaternion(
+        this.mesh.quaternion
+      );
+      forwardVel = new THREE.Vector3(vel.x, vel.y, vel.z).dot(forwardDir);
+    }
 
-    // Ackermann steering from steer input
+    // --- Throttle & Brake Logic ---
+    if (keys.w) throttle = 1;
+    if (keys.s) {
+      if (forwardVel > 1) {
+        // moving forward → brake
+        brake = 1;
+      } else {
+        // stopped or moving backward → reverse
+        throttle = -1;
+      }
+    }
+
+    // spacebar always brakes
+    if (keys[" "]) handbrake = 1;
+
+    // --- Steering Input ---
+    if (keys.a) steer = 1;
+    else if (keys.d) steer = -1;
+
+    // Store control inputs
+    this.controls = { throttle, brake, steer, handbrake };
+
+    // --- Ackermann steering from steer input ---
     if (steer > 0) {
-      // left
       this.ackermannAngleLeft =
         Math.atan(this.wheelBase / (this.turnRadius - this.rearTrack / 2)) *
         steer;
@@ -319,7 +387,6 @@ export default class ClientVehicle {
         Math.atan(this.wheelBase / (this.turnRadius + this.rearTrack / 2)) *
         steer;
     } else if (steer < 0) {
-      // right
       this.ackermannAngleLeft =
         Math.atan(this.wheelBase / (this.turnRadius + this.rearTrack / 2)) *
         steer;
@@ -333,28 +400,39 @@ export default class ClientVehicle {
   }
 
   update(delta: number) {
+    if (!this.physicsObject) return;
+
     delta = 1 / 60;
 
     const horn = this.sounds.get("horn");
     if (this.hornPlaying) {
-      if (!horn?.isPlaying) {
-        horn?.play();
-      }
-    } else {
-      horn?.stop();
-    }
+      if (!horn?.isPlaying) horn?.play();
+    } else horn?.stop();
 
-    ///
+    // --- Steering scaling by speed ---
 
+    const physicsSpeed = this.physicsObject.rigidBody.linvel();
+
+    const speed = this.physicsObject
+      ? new THREE.Vector3(
+          physicsSpeed.x,
+          physicsSpeed.y,
+          physicsSpeed.z
+        ).length()
+      : 0;
+    const steerFactor = THREE.MathUtils.clamp(1 - speed / 50, 0.3, 1);
+
+    this.ackermannAngleLeft *= steerFactor;
+    this.ackermannAngleRight *= steerFactor;
+
+    // --- Update wheels ---
     this.raycastWheels.forEach((wheel) => {
       let targetSteerAngle = 0;
-
       if (wheel.wheelType === "FrontLeft")
         targetSteerAngle = this.ackermannAngleLeft;
       if (wheel.wheelType === "FrontRight")
         targetSteerAngle = this.ackermannAngleRight;
 
-      // Gradually approach target angle
       wheel.steerAngle +=
         (targetSteerAngle - wheel.steerAngle) *
         Math.min(1, this.steerSpeed * delta);
@@ -362,19 +440,13 @@ export default class ClientVehicle {
       wheel.update(delta);
     });
 
+    // --- Update physics transform ---
     if (this.physicsObject) {
       const { x, y, z } = this.physicsObject.rigidBody.translation();
-      let rot = this.physicsObject.rigidBody.rotation();
-
+      const rot = this.physicsObject.rigidBody.rotation();
       this.mesh.position.set(x, y, z);
       this.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
     }
-
-    // console.log(this.getDriver());
-
-    //
-
-    // this.mesh.position.copy(this.physicsObject.rigidBody.translation());
 
     this.updateVisualWheels();
   }

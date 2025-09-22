@@ -302,7 +302,8 @@ export default class World {
           quaternion,
           wheels,
           seats,
-          false
+          false,
+          this.scene
         );
 
         this.vehicles.push(clientVehicle);
@@ -591,7 +592,8 @@ export default class World {
       ),
       wheels,
       seats,
-      isLocal // pass the flag here
+      isLocal,
+      this.scene
     );
 
     this.vehicles.push(clientVehicle);

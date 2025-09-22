@@ -12,6 +12,7 @@ import ClientWeapon from "./ClientWeapon";
 import { IHoldable } from "./interfaces/IHoldable";
 import NetworkManager from "./NetworkManager";
 import { randFloat } from "three/src/math/MathUtils";
+import ClientVehicle from "./ClientVehicle";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -336,6 +337,14 @@ class ClientPlayer {
   }
 
   getPosition() {
+    // if (this.controlledObject) {
+    //   const vehicle = this.world.getObjById(
+    //     this.controlledObject?.id!,
+    //     this.world.vehicles
+    //   ) as ClientVehicle;
+    //   if (vehicle) return vehicle.mesh.position;
+    // }
+
     return this.dummy.position;
   }
 

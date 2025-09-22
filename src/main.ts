@@ -145,6 +145,8 @@ function registerSocketEvents(world: World) {
   });
 
   socket.on("server-notification", (data: ServerNotification) => {
+    if ((data as any).recipient != NetworkManager.instance.localId) return;
+
     if (data.type == "achievement")
       AudioManager.instance.playAudio("achievement");
 
@@ -305,9 +307,8 @@ function registerSocketEvents(world: World) {
       NetworkManager.instance.localId
     ] as ClientPlayer;
     if (serverState) {
-      if (DebugState.instance.reconciliation) {
+      if (DebugState.instance.reconciliation)
         reconcileLocalPlayer(serverState as any);
-      }
 
       delete data.players[NetworkManager.instance.localId];
     }
@@ -318,7 +319,8 @@ function registerSocketEvents(world: World) {
       );
 
       if (serverVehicle) {
-        reconcileLocalVehicle(serverVehicle);
+        if (DebugState.instance.reconciliation)
+          reconcileLocalVehicle(serverVehicle);
       }
     }
 
@@ -403,9 +405,9 @@ function reconcileLocalPlayer(serverState: NetworkPlayer) {
   const player = world?.getPlayerById(NetworkManager.instance.localId);
   if (!player) return;
 
-  if (player.controlledObject) return;
-
   player.setState(serverState as any);
+
+  if (player.controlledObject) return;
 
   // Server snapshot position & velocity
   player.serverPos = new THREE.Vector3(
@@ -442,7 +444,10 @@ type ServerVehicle = {
 };
 
 function reconcileLocalVehicle(serverVehicle: ServerVehicle) {
-  const localVehicle = world?.getObjById(serverVehicle.id, world.vehicles);
+  const localVehicle = world?.getObjById(
+    serverVehicle.id,
+    world.vehicles
+  ) as ClientVehicle;
 
   if (!localVehicle) return;
 
@@ -742,7 +747,8 @@ function interpolateVehicles() {
       ) {
         const seat = clientVehicle.seats[seatIndex];
         if (seat.seater) {
-          updatePlayerSeatTransform(seat.seater, clientVehicle, seatIndex);
+          // seat.seater.setPosition(seat.position);
+          //updatePlayerSeatTransform(seat.seater, clientVehicle, seatIndex);
         }
       }
     }
@@ -908,7 +914,11 @@ function updateRecoil(delta: number, isAiming: boolean) {
 let aimBlend = 0; // put this at the top with globals
 
 function getAimDistance(player: ClientPlayer): number {
-  if (player.rightHand.item) return 2;
+  const inVehicle = player.controlledObject != null;
+
+  if (inVehicle && player.rightHand.item) return 1;
+
+  if (!inVehicle && player.rightHand.item) return 2;
 
   return 3;
 }
@@ -924,6 +934,7 @@ function updateCameraFollow(delta: number) {
   const aiming = keys.mouseRight;
   const playerPos = player.getPosition();
   const rightHandItem = player.rightHand?.item as ClientWeapon;
+  const inVehicle = player.controlledObject != null;
 
   // --- Smooth aiming transition only ---
   const aimTarget = aiming ? 1 : 0;
@@ -963,7 +974,7 @@ function updateCameraFollow(delta: number) {
   );
 
   // --- Desired camera pos ---
-  const height = 0.75;
+  const height = inVehicle && aiming ? 0.6 : 0.75;
   const backOffset = new THREE.Vector3(0, 0, distance).applyQuaternion(camRot);
   const desiredCameraPos = playerPos
     .clone()
@@ -1165,6 +1176,8 @@ function updateLocalVehiclePrediction(vehicle: ClientVehicle, delta: number) {
       seq: vehicleInputSeq++,
       keys: keys,
       dt: FIXED_DT,
+      camQuat: camera.quaternion.clone(),
+      camPos: camera.position.clone(),
     };
     pendingVehicleInputs.push(input);
     socket.emit("vehicleInput", input);
@@ -1360,7 +1373,7 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
     );
     if (seatIndex === -1) return;
 
-    updatePlayerSeatTransform(player, localVehicle, seatIndex);
+    ///updatePlayerSeatTransform(player, localVehicle, seatIndex);
     updateLocalVehiclePrediction(localVehicle, delta);
 
     for (
@@ -1370,7 +1383,8 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
     ) {
       const seat = localVehicle.seats[seatIndex];
       if (seat.seater) {
-        updatePlayerSeatTransform(seat.seater, localVehicle, seatIndex);
+        // seat.seater.setPosition(seat.position);
+        //updatePlayerSeatTransform(seat.seater, localVehicle, seatIndex);
       }
     }
   } else {
@@ -1391,12 +1405,21 @@ function animate(world: World) {
 
   // --- 3) Update world & visuals ---
   world.update(delta);
-  updateCameraFollow(delta);
+
   // updateRecoil(delta);
 
   interpolatePlayers();
   interpolateVehicles();
   interpolateNPCs();
+
+  world.vehicles.forEach((v) => {
+    for (let i = 0; i < v.seats.length; i++) {
+      const s = v.seats[i];
+      if (s.seater) updatePlayerSeatTransform(s.seater, v, i);
+    }
+  });
+
+  updateCameraFollow(delta);
 
   world.players.forEach((p) => p.update(delta));
 

@@ -20,6 +20,7 @@ export default class InputManager {
     " ",
     "r",
     "k",
+    "h",
   ];
   private trackedMouse: string[] = ["mouseLeft", "mouseRight"];
 
