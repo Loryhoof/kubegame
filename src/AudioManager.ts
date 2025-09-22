@@ -21,6 +21,7 @@ const audioList = [
   { key: "pistol_reload", url: "audio/pistol_reload.mp3" },
 
   { key: "achievement", url: "audio/achievement.mp3" },
+  { key: "break", url: "audio/break.mp3" },
 ];
 
 export default class AudioManager {

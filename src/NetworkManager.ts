@@ -4,6 +4,7 @@ export default class NetworkManager {
   private static _instance: NetworkManager | null = null;
   private socket: Socket;
   public localId: string | null = null;
+  public showUI: boolean = true;
 
   private constructor() {
     this.socket = io((import.meta as any).env.VITE_SOCKET_URL);

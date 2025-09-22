@@ -101,6 +101,17 @@ export default function Chat() {
         // addSystemMessage(`Changed nickname to: ${value}`);
       },
     },
+    suicide: {
+      description: "Commit suicide",
+      usage: "/suicide",
+      execute: (args) => {
+        socket.emit("user-command", {
+          command: "suicide",
+        });
+
+        addSystemMessage(`Commited suicide`);
+      },
+    },
     help: {
       description: "List all commands",
       usage: "/help",
@@ -217,50 +228,53 @@ export default function Chat() {
   }, [messages]);
 
   return (
-    <div className="fixed z-[1000] bottom-1/4 left-4 w-60 transition-all duration-200 flex flex-col pointer-events-none h-64">
-      {/* Chat field */}
-      <p className="text-xs font-light ml-1 mb-2">
-        Press <span className="bg-white rounded-lg p-1 px-2 font-bold">T</span>{" "}
-        to type a message
-      </p>
-      <div
-        ref={chatRef}
-        className={`flex-1 overflow-y-auto p-1 space-y-1 rounded-lg text-xs text-gray-100 pointer-events-auto transition-colors duration-200 ${
-          isTyping ? "bg-gray-900/60" : "bg-gray-900/25"
-        }`}
-      >
-        {messages.map((msg, index) => (
-          <div
-            key={`${msg.id}-${index}`}
-            className={`px-1 py-0.5 ${
-              msg.id === "system"
-                ? "text-yellow-400 bg-gray-700/40 rounded p-1 whitespace-pre-line"
-                : "text-gray-200"
-            }`}
-          >
-            {msg.id === "system" ? "" : `${formatUsername(msg)}: `}
-            {msg.text}
-          </div>
-        ))}
-      </div>
-
-      {/* Input field only shows when typing */}
-      {isTyping && (
-        <div className="mt-1 p-1 flex items-center bg-gray-800/50 rounded-md pointer-events-auto">
-          <input
-            type="text"
-            value={input}
-            autoFocus
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") sendMessage();
-              if (e.key === "Escape") setIsTyping(false);
-            }}
-            className="flex-1 bg-transparent text-gray-100 px-2 py-1 text-sm focus:outline-none"
-            placeholder="Type a message..."
-          />
+    <>
+      <div className="fixed z-[1000] bottom-1/4 left-4 w-60 transition-all duration-200 flex flex-col pointer-events-none h-64">
+        {/* Chat field */}
+        <p className="text-xs font-light ml-1 mb-2">
+          Press{" "}
+          <span className="bg-white rounded-lg p-1 px-2 font-bold">T</span> to
+          type a message
+        </p>
+        <div
+          ref={chatRef}
+          className={`flex-1 overflow-y-auto p-1 space-y-1 rounded-lg text-xs text-gray-100 pointer-events-auto transition-colors duration-200 ${
+            isTyping ? "bg-gray-900/60" : "bg-gray-900/25"
+          }`}
+        >
+          {messages.map((msg, index) => (
+            <div
+              key={`${msg.id}-${index}`}
+              className={`px-1 py-0.5 ${
+                msg.id === "system"
+                  ? "text-yellow-400 bg-gray-700/40 rounded p-1 whitespace-pre-line"
+                  : "text-gray-200"
+              }`}
+            >
+              {msg.id === "system" ? "" : `${formatUsername(msg)}: `}
+              {msg.text}
+            </div>
+          ))}
         </div>
-      )}
-    </div>
+
+        {/* Input field only shows when typing */}
+        {isTyping && (
+          <div className="mt-1 p-1 flex items-center bg-gray-800/50 rounded-md pointer-events-auto">
+            <input
+              type="text"
+              value={input}
+              autoFocus
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") sendMessage();
+                if (e.key === "Escape") setIsTyping(false);
+              }}
+              className="flex-1 bg-transparent text-gray-100 px-2 py-1 text-sm focus:outline-none"
+              placeholder="Type a message..."
+            />
+          </div>
+        )}
+      </div>
+    </>
   );
 }

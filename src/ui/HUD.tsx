@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 
 import { BiCoinStack } from "react-icons/bi";
+import { isMobile } from "../utils";
+import DeathScreen from "./DeathScreen";
 
 type WeaponData = {
   ammo: number;
@@ -18,6 +20,7 @@ type EventData = {
   ping: number;
   weapon: WeaponData;
   ammo: number;
+  isDead: boolean;
 };
 
 export default function HUD() {
@@ -30,7 +33,10 @@ export default function HUD() {
     ping: 0,
     weaponData: null as WeaponData | null,
     ammo: 0,
+    isDead: false,
   });
+
+  const [deathState, setDeathState] = useState(null);
 
   const onPlayerUpdate = useCallback((e: CustomEvent<EventData>) => {
     const d = e.detail;
@@ -43,8 +49,14 @@ export default function HUD() {
       ping: d.ping,
       ammo: d.ammo,
       weaponData: d.weapon,
+      isDead: d.isDead,
     });
   }, []);
+
+  const onPlayerDeath = (state: any) => {
+    const d = state.detail;
+    setDeathState(d);
+  };
 
   useEffect(() => {
     window.addEventListener("player-update", onPlayerUpdate as EventListener);
@@ -55,8 +67,16 @@ export default function HUD() {
       );
   }, [onPlayerUpdate]);
 
-  const { playerCount, ping, health, coins, position, weaponData, ammo } =
-    state;
+  const {
+    playerCount,
+    ping,
+    health,
+    coins,
+    position,
+    weaponData,
+    ammo,
+    isDead,
+  } = state;
 
   return (
     <>

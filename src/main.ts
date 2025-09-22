@@ -57,6 +57,8 @@ type NetworkPlayer = {
   leftHand: any;
   rightHand: any;
   viewQuaternion: { x: number; y: number; z: number; w: number };
+  isDead: boolean;
+  killCount: number;
 };
 
 let ping = 0;
@@ -264,6 +266,25 @@ function registerSocketEvents(world: World) {
       // );
     }
   );
+
+  socket.on("player-death", (playerId: string) => {
+    const player = world.getPlayerById(playerId);
+
+    if (!player) return;
+    player.die();
+
+    onDeathEvent(player);
+  });
+
+  socket.on("player-respawn", (playerId: string) => {
+    const player = world.getPlayerById(playerId);
+
+    if (!player) return;
+
+    player.respawn();
+
+    onRespawnEvent(player);
+  });
 
   socket.on("addPlayer", (playerId: string) => {
     const newPlayer = new ClientPlayer(world, playerId, "0xffffff", scene);
@@ -591,6 +612,8 @@ function interpolatePlayers() {
           pNew.viewQuaternion.z,
           pNew.viewQuaternion.w
         ),
+        isDead: pNew.isDead,
+        killCount: pNew.killCount,
       });
     }
   }
@@ -895,6 +918,8 @@ function updateCameraFollow(delta: number) {
   const player = world?.getPlayerById(NetworkManager.instance.localId);
   if (!player) return;
 
+  if (player.isDead) return;
+
   const keys = InputManager.instance.getState();
   const aiming = keys.mouseRight;
   const playerPos = player.getPosition();
@@ -976,9 +1001,34 @@ function checkPlayerInteractables(player: ClientPlayer, world: World) {
   return minDist <= 1.5;
 }
 
+function onDeathEvent(player: ClientPlayer) {
+  if (!player.isLocalPlayer) return;
+
+  const eventData = {
+    isDead: true,
+    state: {
+      kills: player.killCount,
+    },
+  };
+
+  window.dispatchEvent(new CustomEvent("ui-state", { detail: eventData }));
+}
+
+function onRespawnEvent(player: ClientPlayer) {
+  if (!player.isLocalPlayer) return;
+
+  const eventData = {
+    isDead: false,
+    state: null,
+  };
+
+  window.dispatchEvent(new CustomEvent("ui-state", { detail: eventData }));
+}
+
 // ---------------- UI ----------------
 function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
   const showCrosshair =
+    !player.isDead &&
     player.rightHand.item != null &&
     InputManager.instance.getState().mouseRight;
 
@@ -992,6 +1042,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
     showCrosshair: showCrosshair,
     weapon: player.rightHand.item,
     ammo: player.ammo,
+    isDead: player.isDead,
   };
   window.dispatchEvent(new CustomEvent("player-update", { detail: eventData }));
   window.dispatchEvent(
@@ -1257,8 +1308,28 @@ let prevFire = false;
 let recoilPitchOffset = 0;
 let recoilYawOffset = 0;
 
+let prevRespawn = false;
+
 function updateLocalPlayer(player: ClientPlayer, delta: number) {
   const keys = InputManager.instance.getState();
+
+  if (player.isDead) {
+    const respawnPressed = keys.r && !prevRespawn;
+
+    if (!player.onDeathScreen) {
+      onDeathEvent(player);
+      player.onDeathScreen = true;
+    }
+
+    if (respawnPressed) {
+      socket.emit("player-respawn");
+    }
+
+    prevRespawn = keys.r;
+
+    return;
+  }
+
   const aiming = keys.mouseRight;
   const shooting = keys.mouseLeft && aiming;
   const shotPressed = shooting && !prevFire; // rising edge → one shot only

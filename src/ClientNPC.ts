@@ -151,6 +151,8 @@ class ClientNPC {
       }
     });
 
+    this.dummy.visible = false;
+
     this.scene.add(this.dummy);
     this.dummy.add(this.model);
     this.boundingBox = new THREE.Box3();
@@ -394,6 +396,7 @@ class ClientNPC {
         }
       });
       this.hasInit = true;
+      this.dummy.visible = true;
     }
   }
 

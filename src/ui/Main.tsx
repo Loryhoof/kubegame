@@ -10,9 +10,17 @@ import Chat from "./Chat";
 import { isMobile } from "../utils";
 import Notifications from "./Notifications";
 import Crosshair from "./Crosshair";
+import DeathScreen from "./DeathScreen";
+
+export type DeathState = {
+  kills: number;
+};
 
 const Main = () => {
   const [ready, setReady] = useState<boolean>(false);
+
+  const [isDead, setIsDead] = useState<boolean>(false);
+  const [deathState, setDeathState] = useState<DeathState | null>(null);
 
   useEffect(() => {
     const onLoadingStatus = (e: CustomEvent<any>) => {
@@ -21,10 +29,19 @@ const Main = () => {
       setReady(ready);
     };
 
+    const onUIState = (e: CustomEvent<any>) => {
+      const d = e.detail;
+
+      setIsDead(d.isDead);
+      setDeathState(d.state);
+    };
+
     window.addEventListener("loading-status", onLoadingStatus as any);
+    window.addEventListener("ui-state", onUIState as any);
 
     return () => {
       window.removeEventListener("loading-status", onLoadingStatus as any);
+      window.removeEventListener("ui-state", onUIState as any);
     };
   }, []);
 
@@ -32,13 +49,19 @@ const Main = () => {
     <>
       {ready && (
         <>
-          <HUD />
-          <InteractButton />
-          <MobileControls />
-          <InfoBar />
-          <Notifications />
-          {!isMobile() && <Chat />}
-          <Crosshair />
+          {isDead && deathState && <DeathScreen state={deathState} />}
+
+          {!isDead && (
+            <>
+              <HUD />
+              <InteractButton />
+              <MobileControls />
+              <InfoBar />
+              <Notifications />
+              {!isMobile() && <Chat />}
+              <Crosshair />
+            </>
+          )}
         </>
       )}
       <LoadingScreen />
