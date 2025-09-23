@@ -26,7 +26,7 @@ export default function InfoBar() {
           </>
         )}
 
-        <p className="pt-2">Kubegame v0.1.30</p>
+        <p className="pt-2">Kubegame v0.1.31</p>
         {/* <p className="pt-2 text-xs text-black font-bold">
         Weapon test. type{" "}
         <span className="bg-yellow-500 text-yellow-700 p-0.5">

@@ -545,25 +545,52 @@ class ClientPlayer {
       this.velocity.z
     );
 
+    // if (horizontalVelocity.lengthSq() > 0.0001) {
+    //   if (input.aim) {
+    //     const camQuat = quat || CameraManager.instance.getCamera().quaternion;
+    //     const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+
+    //     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+    //       new THREE.Vector3(0, 1, 0),
+    //       euler.y
+    //     );
+
+    //     this.dummy.quaternion.slerp(yawQuat, 0.25);
+    //   } else {
+    //     const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+    //     const targetQuat = new THREE.Quaternion().setFromAxisAngle(
+    //       new THREE.Vector3(0, 1, 0),
+    //       yaw
+    //     );
+    //     this.dummy.quaternion.slerp(targetQuat, 0.25);
+    //   }
+    // }\\
+
+    // pick targetQuat depending on aim vs movement like before
+    let targetQuat: THREE.Quaternion | null = null;
+
     if (horizontalVelocity.lengthSq() > 0.0001) {
       if (input.aim) {
         const camQuat = quat || CameraManager.instance.getCamera().quaternion;
         const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
-
         const yawQuat = new THREE.Quaternion().setFromAxisAngle(
           new THREE.Vector3(0, 1, 0),
           euler.y
         );
-
-        this.dummy.quaternion.slerp(yawQuat, 0.25);
+        targetQuat = yawQuat;
       } else {
         const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
-        const targetQuat = new THREE.Quaternion().setFromAxisAngle(
+        targetQuat = new THREE.Quaternion().setFromAxisAngle(
           new THREE.Vector3(0, 1, 0),
           yaw
         );
-        this.dummy.quaternion.slerp(targetQuat, 0.25);
       }
+    }
+
+    if (targetQuat) {
+      const blendSpeed = 10.0; // adjust responsiveness
+      const t = 1 - Math.exp(-blendSpeed * delta); // frame-rate independent
+      this.dummy.quaternion.slerp(targetQuat, t);
     }
   }
 
