@@ -64,6 +64,8 @@ export default function MobileControls() {
           {/* Left side */}
           <div className="fixed z-[10000] bottom-1/3 left-4">
             <div className="flex flex-col space-y-2">
+              {createButton("R", "reload")}
+
               {createButton("Aim", "aim")}
             </div>
           </div>
