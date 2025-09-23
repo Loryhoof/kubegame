@@ -248,7 +248,7 @@ export default function Chat() {
         </p>
         <div
           ref={chatRef}
-          className={`flex-1 overflow-y-auto p-1 space-y-1 rounded-lg text-xs text-gray-100 pointer-events-auto transition-colors duration-200 ${
+          className={`flex-1 overflow-y-auto p-1 space-y-1 rounded-lg text-xs text-gray-100  hide-scrollbar pointer-events-auto transition-colors duration-200 ${
             isTyping ? "bg-gray-900/60" : "bg-gray-900/25"
           }`}
         >
