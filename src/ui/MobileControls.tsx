@@ -1,5 +1,5 @@
 import "../../index.css";
-import { isMobile } from "../utils";
+import { isIOS, isMobile } from "../utils";
 import React, { useEffect, useState } from "react";
 import Joystick from "./Joystick";
 
@@ -15,9 +15,11 @@ type EventData = {
 export default function MobileControls() {
   const [isActive, setIsActive] = useState(false);
 
-  const handleKey = (key: string, pressed: boolean) => {
+  const ios = isIOS();
+
+  const handleAction = (action: string, pressed: boolean) => {
     const event = new CustomEvent("mobile-buttons", {
-      detail: { key, pressed } as any,
+      detail: { action, pressed } as any,
     });
     window.dispatchEvent(event);
   };
@@ -28,26 +30,26 @@ export default function MobileControls() {
 
   const createButton = (label: string, key: string) => (
     <button
-      className="bg-white text-black text-sm font-bold p-2 rounded-xl w-12 h-12 active:bg-red-500 user-select-none"
+      className="bg-white text-black text-sm font-bold p-2 rounded-xl w-12 h-12 active:bg-gray-200 user-select-none"
       onMouseDown={(e) => {
         e.preventDefault();
-        handleKey(key, true);
+        handleAction(key, true);
       }}
       onMouseUp={(e) => {
         e.preventDefault();
-        handleKey(key, false);
+        handleAction(key, false);
       }}
       onMouseLeave={(e) => {
         e.preventDefault();
-        handleKey(key, false);
+        handleAction(key, false);
       }}
       onTouchStart={(e) => {
         e.preventDefault();
-        handleKey(key, true);
+        handleAction(key, true);
       }}
       onTouchEnd={(e) => {
         e.preventDefault();
-        handleKey(key, false);
+        handleAction(key, false);
       }}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -59,31 +61,32 @@ export default function MobileControls() {
     <>
       {isActive && (
         <>
+          {/* Left side */}
+          <div className="fixed z-[10000] bottom-1/3 left-4">
+            <div className="flex flex-col space-y-2">
+              {createButton("Aim", "aim")}
+            </div>
+          </div>
+
+          {/* Right side */}
           <div className="fixed z-[10000] bottom-4 right-4">
             <div className="flex flex-col space-y-2">
-              <button
-                className=""
-                onClick={() => {
-                  document.documentElement.requestFullscreen();
-                }}
-              >
-                FS
-              </button>
-              {createButton("Car", "k")}
+              {!ios && (
+                <button
+                  className=""
+                  onClick={() => {
+                    document.documentElement.requestFullscreen();
+                  }}
+                >
+                  FS
+                </button>
+              )}
+              {createButton("Car", "spawnVehicle")}
 
-              {createButton("Use", "e")}
-              {createButton("Hit", "mouseLeft")}
-              {createButton("JMP", " ")}
-              {createButton("RUN", "shift")}
-
-              {/* <button
-                className=""
-                onClick={() => {
-                  document.documentElement.requestFullscreen();
-                }}
-              >
-                FS
-              </button> */}
+              {createButton("Use", "interact")}
+              {createButton("Hit", "shoot")}
+              {createButton("JMP", "jump")}
+              {createButton("RUN", "sprint")}
             </div>
           </div>
 

@@ -151,18 +151,24 @@ export default class InputManager {
   };
 
   private onMobileButtons = (e: any) => {
-    const { key, pressed } = e.detail;
-    this.keys[key] = pressed;
+    const { action, pressed } = e.detail;
+    this.setActionPressed(action as Action, pressed);
   };
 
   private onMobileControls = (e: MobileEvent) => {
     const { x, y } = e.detail;
     const threshold = 0.2;
 
-    this.keys["w"] = y < -threshold;
-    this.keys["s"] = y > threshold;
-    this.keys["a"] = x < -threshold;
-    this.keys["d"] = x > threshold;
+    const dirMap: [Action, boolean][] = [
+      ["moveForward", y < -threshold],
+      ["moveBackward", y > threshold],
+      ["moveLeft", x < -threshold],
+      ["moveRight", x > threshold],
+    ];
+
+    for (const [action, pressed] of dirMap) {
+      this.setActionPressed(action, pressed);
+    }
   };
 
   // --- binding resolution ---
@@ -180,6 +186,32 @@ export default class InputManager {
         );
       default:
         return false;
+    }
+  }
+
+  // --- helper to set an action's pressed state ---
+  private setActionPressed(action: Action, pressed: boolean) {
+    const binds = this.bindings[action];
+    if (!binds) return;
+
+    for (const b of binds) {
+      switch (b.type) {
+        case "key":
+          this.keys[(b.code as string).toLowerCase()] = pressed;
+          break;
+        case "mouse":
+          this.mouse[b.code as number] = pressed;
+          break;
+        case "combo":
+          // combos need extra logic – usually handled in resolveBinding()
+          // but we could still set the base input here
+          if (typeof b.code === "number") {
+            this.mouse[b.code] = pressed;
+          } else {
+            this.keys[(b.code as string).toLowerCase()] = pressed;
+          }
+          break;
+      }
     }
   }
 
