@@ -444,11 +444,11 @@ class ClientNPC {
   private updateAnimationState(delta: number) {
     const velocityLength = this.velocity.length();
 
-    const keys = this.isLocalPlayer
+    const input = this.isLocalPlayer
       ? InputManager.instance.getState()
       : this.keys;
-    const isStrafing = keys.mouseRight;
-    const speedFactor = keys.shift ? 1.5 : 1;
+    const isStrafing = input.aim;
+    const speedFactor = input.sprint ? 1.5 : 1;
 
     const moving = this.velocity.length() > 0.01;
     const isRunning = velocityLength > 4 && moving;
@@ -505,10 +505,10 @@ class ClientNPC {
 
       if (isStrafing) {
         this.interpolateWeight(walkLower, 0, delta);
-        if (keys.a) {
+        if (input.moveLeft) {
           this.interpolateWeight(strafeLeft, 1, delta * speedFactor);
           this.interpolateWeight(strafeRight, 0, delta);
-        } else if (keys.d) {
+        } else if (input.moveRight) {
           this.interpolateWeight(strafeRight, 1, delta * speedFactor);
           this.interpolateWeight(strafeLeft, 0, delta);
         } else {

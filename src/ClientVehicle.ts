@@ -337,8 +337,8 @@ export default class ClientVehicle {
     return this.getDriver() ? this.getDriver()?.getKeys() : null;
   }
 
-  predictMovementCustom(keys: any) {
-    if (!keys) return;
+  predictMovementCustom(actions: any) {
+    if (!actions) return;
 
     let throttle = 0;
     let brake = 0;
@@ -357,8 +357,8 @@ export default class ClientVehicle {
     }
 
     // --- Throttle & Brake Logic ---
-    if (keys.w) throttle = 1;
-    if (keys.s) {
+    if (actions.moveForward) throttle = 1;
+    if (actions.moveBackward) {
       if (forwardVel > 1) {
         // moving forward → brake
         brake = 1;
@@ -369,11 +369,11 @@ export default class ClientVehicle {
     }
 
     // spacebar always brakes
-    if (keys[" "]) handbrake = 1;
+    if (actions.jump) handbrake = 1;
 
     // --- Steering Input ---
-    if (keys.a) steer = 1;
-    else if (keys.d) steer = -1;
+    if (actions.moveLeft) steer = 1;
+    else if (actions.moveRight) steer = -1;
 
     // Store control inputs
     this.controls = { throttle, brake, steer, handbrake };

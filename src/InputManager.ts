@@ -1,71 +1,96 @@
 import { WebGLRenderer } from "three";
 
 type MobileEvent = {
-  detail: {
-    x: number;
-    y: number;
-  };
+  detail: { x: number; y: number };
 };
 
+type Action =
+  | "moveForward"
+  | "moveBackward"
+  | "moveLeft"
+  | "moveRight"
+  | "jump"
+  | "sprint"
+  | "interact"
+  | "reload"
+  | "shoot"
+  | "aim"
+  | "spawnVehicle"
+  | "useHorn";
+
+type InputBinding = {
+  type: "key" | "mouse" | "combo";
+  code: string | number; // e.key for "key", e.button for "mouse"
+  modifier?: "ctrl" | "shift" | "alt";
+};
+
+// ✅ Helper to initialize all actions as false
+const makeEmptyActionState = (): Record<Action, boolean> => ({
+  moveForward: false,
+  moveBackward: false,
+  moveLeft: false,
+  moveRight: false,
+  jump: false,
+  sprint: false,
+  interact: false,
+  reload: false,
+  shoot: false,
+  aim: false,
+  spawnVehicle: false,
+  useHorn: false,
+});
+
 export default class InputManager {
+  private static _instance: InputManager | null;
+
+  private renderer: WebGLRenderer | null = null;
+  private ignoreKeys = false;
+
+  // store current pressed state
   private keys: Record<string, boolean> = {};
-  private prevKeys: Record<string, boolean> = {}; // <-- track last frame's state
-  private trackedKeys: string[] = [
-    "w",
-    "a",
-    "s",
-    "d",
-    "shift",
-    "e",
-    " ",
-    "r",
-    "k",
-    "h",
-  ];
-  private trackedMouse: string[] = ["mouseLeft", "mouseRight"];
+  private mouse: Record<number, boolean> = {};
 
-  private mouseDeltaX: number = 0;
-  private mouseDeltaY: number = 0;
+  private prevActionState: Record<Action, boolean> = makeEmptyActionState();
+  private actionState: Record<Action, boolean> = makeEmptyActionState();
 
-  private mouseWheelDelta: number = 0;
-
+  // Camera + mouse look state
   public cameraYaw: number = 0;
   public cameraPitch: number = 0;
   private cameraSensitivity: number = 0.002;
   public cameraDistance: number = 5;
+  private mouseDeltaX: number = 0;
+  private mouseDeltaY: number = 0;
+  private mouseWheelDelta: number = 0;
 
-  public static _instance: InputManager | null;
-
-  private isReady: boolean = false;
-
-  private renderer: WebGLRenderer | null = null;
-
-  public ignoreKeys: boolean = false;
+  // --- bindings ---
+  private bindings: Record<Action, InputBinding[]> = {
+    moveForward: [{ type: "key", code: "w" }],
+    moveBackward: [{ type: "key", code: "s" }],
+    moveLeft: [{ type: "key", code: "a" }],
+    moveRight: [{ type: "key", code: "d" }],
+    jump: [{ type: "key", code: " " }],
+    sprint: [{ type: "key", code: "shift" }],
+    interact: [{ type: "key", code: "e" }],
+    reload: [{ type: "key", code: "r" }],
+    shoot: [{ type: "mouse", code: 0 }], // left mouse
+    aim: [
+      { type: "mouse", code: 2 }, // right mouse
+      { type: "key", code: "control" }, // optional keyboard fallback
+    ],
+    spawnVehicle: [{ type: "key", code: "k" }],
+    useHorn: [{ type: "key", code: "h" }],
+  };
 
   private constructor() {
     this.init();
   }
 
   public static get instance(): InputManager {
-    if (!this._instance) {
-      this._instance = new InputManager();
-    }
+    if (!this._instance) this._instance = new InputManager();
     return this._instance;
   }
 
   private init() {
-    // Initialize all tracked keys to false
-    for (const key of this.trackedKeys) {
-      this.keys[key] = false;
-      this.prevKeys[key] = false;
-    }
-
-    // Initialize tracked mouse buttons to false
-    for (const mouseKey of this.trackedMouse) {
-      this.keys[mouseKey] = false;
-      this.prevKeys[mouseKey] = false;
-    }
-
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("mousedown", this.onMouseDown);
@@ -76,19 +101,23 @@ export default class InputManager {
     window.addEventListener("wheel", this.onMouseWheel);
   }
 
-  public isHoldingRightMouse = () => {
-    return this.keys["mouseRight"];
+  // --- event handlers ---
+  private onKeyDown = (e: KeyboardEvent) => {
+    if (this.ignoreKeys) return;
+    this.keys[e.key.toLowerCase()] = true;
   };
 
-  private onMouseWheel = (e: WheelEvent) => {
+  private onKeyUp = (e: KeyboardEvent) => {
     if (this.ignoreKeys) return;
+    this.keys[e.key.toLowerCase()] = false;
+  };
 
-    const delta = e.deltaY + e.deltaX;
+  private onMouseDown = (e: MouseEvent) => {
+    this.mouse[e.button] = true;
+  };
 
-    this.mouseWheelDelta += delta;
-
-    this.cameraDistance -= delta * 0.01;
-    this.cameraDistance = Math.max(5, Math.min(10, this.cameraDistance));
+  private onMouseUp = (e: MouseEvent) => {
+    this.mouse[e.button] = false;
   };
 
   private onPointerMove = (e: PointerEvent) => {
@@ -100,13 +129,12 @@ export default class InputManager {
     this.cameraPitch += e.movementY * this.cameraSensitivity;
 
     // aiming state → widen pitch range slightly
-    const aiming = this.keys["mouseRight"];
+    const aiming = this.actionState.aim;
 
     // normal: 60° down, 15° up | aiming: 70° down, 40° up
-    const maxPitch = aiming ? Math.PI / 2.5 : Math.PI / 3; // ~70° vs 60°
-    const minPitch = aiming ? -Math.PI / 4.5 : -Math.PI / 12; // ~40° vs 15°
+    const maxPitch = aiming ? Math.PI / 2.5 : Math.PI / 3;
+    const minPitch = aiming ? -Math.PI / 4.5 : -Math.PI / 12;
 
-    // clamp after updating pitch
     this.cameraPitch = Math.max(minPitch, Math.min(maxPitch, this.cameraPitch));
 
     // store deltas for other systems
@@ -114,120 +142,100 @@ export default class InputManager {
     this.mouseDeltaY += e.movementY;
   };
 
-  // --- Input Event Handlers ---
-  private onKeyDown = (e: KeyboardEvent) => {
+  private onMouseWheel = (e: WheelEvent) => {
     if (this.ignoreKeys) return;
-
-    const key = e.key.toLowerCase();
-    if (this.keys.hasOwnProperty(key)) {
-      this.keys[key] = true;
-    }
+    const delta = e.deltaY + e.deltaX;
+    this.mouseWheelDelta += delta;
+    this.cameraDistance -= delta * 0.01;
+    this.cameraDistance = Math.max(5, Math.min(10, this.cameraDistance));
   };
 
-  public setIgnoreKeys(bool: boolean) {
-    this.ignoreKeys = bool;
+  private onMobileButtons = (e: any) => {
+    const { key, pressed } = e.detail;
+    this.keys[key] = pressed;
+  };
+
+  private onMobileControls = (e: MobileEvent) => {
+    const { x, y } = e.detail;
+    const threshold = 0.2;
+
+    this.keys["w"] = y < -threshold;
+    this.keys["s"] = y > threshold;
+    this.keys["a"] = x < -threshold;
+    this.keys["d"] = x > threshold;
+  };
+
+  // --- binding resolution ---
+  private resolveBinding(b: InputBinding): boolean {
+    switch (b.type) {
+      case "key":
+        return !!this.keys[b.code as string];
+      case "mouse":
+        return !!this.mouse[b.code as number];
+      case "combo":
+        return (
+          !!this.mouse[b.code as number] &&
+          b.modifier === "ctrl" &&
+          (this.keys["control"] || this.keys["ctrl"])
+        );
+      default:
+        return false;
+    }
   }
 
-  public getMouseWheelDelta() {
-    return this.mouseWheelDelta;
+  private updateActions() {
+    for (const action in this.bindings) {
+      const binds = this.bindings[action as Action];
+      this.actionState[action as Action] = binds.some((b) =>
+        this.resolveBinding(b)
+      );
+    }
+  }
+
+  // --- public API ---
+  public update() {
+    this.prevActionState = { ...this.actionState };
+    this.updateActions();
+    this.mouseDeltaX = 0;
+    this.mouseDeltaY = 0;
+  }
+
+  public getState() {
+    return {
+      ...this.actionState, // flattened actions
+      raw: {
+        keys: { ...this.keys },
+        mouse: { ...this.mouse },
+      },
+    };
   }
 
   public getMouseDelta() {
     return { x: this.mouseDeltaX, y: this.mouseDeltaY };
   }
 
-  public setIsReady(val: boolean) {
-    this.isReady = val;
+  public getMouseWheelDelta() {
+    return this.mouseWheelDelta;
   }
 
-  public setRenderer(renderer: WebGLRenderer) {
-    this.renderer = renderer;
+  public isAction(action: Action): boolean {
+    return !!this.actionState[action];
   }
 
-  private onKeyUp = (e: KeyboardEvent) => {
-    if (this.ignoreKeys) return;
-
-    const key = e.key.toLowerCase();
-    if (this.keys.hasOwnProperty(key)) {
-      this.keys[key] = false;
-    }
-  };
-
-  private onMouseDown = (e: MouseEvent) => {
-    if (e.button === 0) this.keys["mouseLeft"] = true;
-    if (e.button === 2) this.keys["mouseRight"] = true;
-  };
-
-  private onMouseUp = (e: MouseEvent) => {
-    if (e.button === 0) this.keys["mouseLeft"] = false;
-    if (e.button === 2) this.keys["mouseRight"] = false;
-  };
-
-  private onMobileButtons = (e: any) => {
-    const { key, pressed } = e.detail;
-
-    this.keys[key] = pressed;
-  };
-
-  private onMobileControls = (e: MobileEvent) => {
-    const { x, y } = e.detail;
-
-    // Reset keys first
-    this.keys["w"] = false;
-    this.keys["s"] = false;
-    this.keys["a"] = false;
-    this.keys["d"] = false;
-
-    // Threshold to avoid tiny joystick jitters
-    const threshold = 0.2;
-
-    // Vertical movement
-    if (y > threshold) this.keys["s"] = true;
-    if (y < -threshold) this.keys["w"] = true;
-
-    // Horizontal movement
-    if (x > threshold) this.keys["d"] = true;
-    if (x < -threshold) this.keys["a"] = true;
-  };
-
-  // --- State Query ---
-  public isKeyPressed(key: string): boolean {
-    if (this.ignoreKeys) return false;
-
-    return !!this.keys[key];
+  public isActionJustPressed(action: Action): boolean {
+    return this.actionState[action] && !this.prevActionState[action];
   }
 
-  public isJustPressed(key: string): boolean {
-    if (this.ignoreKeys) return false;
-
-    key = key.toLowerCase();
-    return this.keys[key] && !this.prevKeys[key];
+  public isActionJustReleased(action: Action): boolean {
+    return !this.actionState[action] && this.prevActionState[action];
   }
 
-  public isJustReleased(key: string): boolean {
-    if (this.ignoreKeys) return false;
-
-    key = key.toLowerCase();
-    return !this.keys[key] && this.prevKeys[key];
+  public setRenderer(r: WebGLRenderer) {
+    this.renderer = r;
   }
 
-  public getState = () => {
-    return { ...this.keys };
-  };
-
-  public isMoving = () => {
-    if (this.ignoreKeys) return false;
-
-    return this.keys["w"] || this.keys["a"] || this.keys["s"] || this.keys["d"];
-  };
-
-  // --- Call once per frame ---
-  public update() {
-    // Save current state to prevKeys for next frame's comparisons
-    this.prevKeys = { ...this.keys };
-
-    this.mouseDeltaX = 0;
-    this.mouseDeltaY = 0;
+  public setIgnoreKeys(bool: boolean) {
+    this.ignoreKeys = bool;
   }
 
   public destroy() {
@@ -235,5 +243,7 @@ export default class InputManager {
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("mousedown", this.onMouseDown);
     window.removeEventListener("mouseup", this.onMouseUp);
+    window.removeEventListener("pointermove", this.onPointerMove);
+    window.removeEventListener("wheel", this.onMouseWheel);
   }
 }

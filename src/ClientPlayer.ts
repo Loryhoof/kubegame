@@ -475,7 +475,7 @@ class ClientPlayer {
 
     if (this.isDead) return;
 
-    const input = keys || InputManager.instance.getState();
+    const input = keys ?? InputManager.instance.getState();
     const inputDir = new THREE.Vector3();
 
     const GRAVITY = -9.81;
@@ -485,15 +485,15 @@ class ClientPlayer {
     const WALK_SPEED = BASE_SPEED;
     const RUN_SPEED = BASE_SPEED * 2;
     const MAX_WALL_DISTANCE = 0.3;
-    let speed = input.shift ? RUN_SPEED : WALK_SPEED;
-    if (input.mouseRight) speed = WALK_SPEED;
+    let speed = input.sprint ? RUN_SPEED : WALK_SPEED;
+    if (input.aim) speed = WALK_SPEED;
 
     // ---- INPUT VECTOR ----
     inputDir.set(0, 0, 0);
-    if (input.w) inputDir.z -= 1;
-    if (input.s) inputDir.z += 1;
-    if (input.a) inputDir.x -= 1;
-    if (input.d) inputDir.x += 1;
+    if (input.moveForward) inputDir.z -= 1;
+    if (input.moveBackward) inputDir.z += 1;
+    if (input.moveLeft) inputDir.x -= 1;
+    if (input.moveRight) inputDir.x += 1;
 
     const hasInput = inputDir.lengthSq() > 0;
 
@@ -515,7 +515,7 @@ class ClientPlayer {
     }
 
     // ---- JUMP ----
-    if (input[" "]) this.jump();
+    if (input.jump) this.jump();
 
     const targetVel = hasInput
       ? worldDir.multiplyScalar(speed)
@@ -546,7 +546,7 @@ class ClientPlayer {
     );
 
     if (horizontalVelocity.lengthSq() > 0.0001) {
-      if (input.mouseRight) {
+      if (input.aim) {
         const camQuat = quat || CameraManager.instance.getCamera().quaternion;
         const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
 
@@ -949,11 +949,11 @@ class ClientPlayer {
   }
 
   private updateAnimationState(delta: number) {
-    const keys = this.isLocalPlayer
+    const input = this.isLocalPlayer
       ? InputManager.instance.getState()
       : this.keys;
-    const isStrafing = keys.mouseRight;
-    let speedFactor = keys.shift ? 1.5 : 1;
+    const isStrafing = input.aim;
+    let speedFactor = input.sprint ? 1.5 : 1;
     if (isStrafing) speedFactor = 1;
 
     const horizontalVelocity = new THREE.Vector3(
@@ -962,7 +962,7 @@ class ClientPlayer {
       this.velocity.z
     );
     const moving = horizontalVelocity.length() > 0.01;
-    const isRunning = keys.shift && moving && !isStrafing;
+    const isRunning = input.sprint && moving && !isStrafing;
 
     const idle = this.animations.get("Idle");
     const walkLower = this.animations.get("Walk_Lower");
@@ -977,7 +977,7 @@ class ClientPlayer {
     const aimUpper = this.animations.get("Aim_Upper");
 
     // --- AIM LOGIC ---
-    const aiming = keys.mouseRight;
+    const aiming = input.aim;
     if (aiming && this.rightHand.item) {
       this.interpolateWeight(aimUpper, 1, delta);
       this.interpolateWeight(idle, 0, delta);
@@ -990,10 +990,10 @@ class ClientPlayer {
       this.interpolateWeight(runningLower, 0, delta);
 
       if (moving) {
-        if (keys.a) {
+        if (input.moveLeft) {
           this.interpolateWeight(strafeLeft, 1, delta * speedFactor);
           this.interpolateWeight(strafeRight, 0, delta);
-        } else if (keys.d) {
+        } else if (input.moveRight) {
           this.interpolateWeight(strafeRight, 1, delta * speedFactor);
           this.interpolateWeight(strafeLeft, 0, delta);
         } else {
@@ -1096,10 +1096,10 @@ class ClientPlayer {
       if (isStrafing) {
         //this.interpolateWeight(aimUpper, 1, delta);
         this.interpolateWeight(walkLower, 0, delta);
-        if (keys.a) {
+        if (input.moveLeft) {
           this.interpolateWeight(strafeLeft, 1, delta * speedFactor);
           this.interpolateWeight(strafeRight, 0, delta);
-        } else if (keys.d) {
+        } else if (input.moveRight) {
           this.interpolateWeight(strafeRight, 1, delta * speedFactor);
           this.interpolateWeight(strafeLeft, 0, delta);
         } else {

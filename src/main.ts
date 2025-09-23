@@ -238,8 +238,8 @@ function registerSocketEvents(world: World) {
         if (bp == "head") {
           AudioManager.instance.playAudio(
             "impact_headshot",
-            0.1,
-            randFloat(1, 1000)
+            0.2
+            // randFloat(1, 1000)
           );
           return;
         }
@@ -930,8 +930,8 @@ function updateCameraFollow(delta: number) {
 
   if (player.isDead) return;
 
-  const keys = InputManager.instance.getState();
-  const aiming = keys.mouseRight;
+  const input = InputManager.instance.getState();
+  const aiming = input.aim;
   const playerPos = player.getPosition();
   const rightHandItem = player.rightHand?.item as ClientWeapon;
   const inVehicle = player.controlledObject != null;
@@ -1041,7 +1041,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
   const showCrosshair =
     !player.isDead &&
     player.rightHand.item != null &&
-    InputManager.instance.getState().mouseRight;
+    InputManager.instance.getState().aim;
 
   const eventData = {
     networkId: NetworkManager.instance.localId,
@@ -1073,12 +1073,12 @@ function updateLocalCharacterPrediction(player: ClientPlayer, delta: number) {
 
   while (accumulator >= FIXED_DT) {
     // --- 1) Collect input & predict instantly ---
-    const keys = InputManager.instance.getState();
+    const actions = InputManager.instance.getState();
     const input = {
       type: "character",
       seq: inputSeq++,
       dt: FIXED_DT,
-      keys,
+      actions: actions,
       camQuat: camera.quaternion.clone(),
       camPos: camera.position.clone(),
     };
@@ -1086,7 +1086,7 @@ function updateLocalCharacterPrediction(player: ClientPlayer, delta: number) {
     socket.emit("playerInput", input);
 
     // Predict immediately for responsiveness
-    playerObject.predictMovement(FIXED_DT, keys, input.camQuat);
+    playerObject.predictMovement(FIXED_DT, actions, input.camQuat);
     accumulator -= FIXED_DT;
 
     // --- 2) Reconciliation ---
@@ -1170,11 +1170,11 @@ function updateLocalVehiclePrediction(vehicle: ClientVehicle, delta: number) {
 
   while (accumulator >= FIXED_DT) {
     // --- 1) Collect input & predict instantly ---
-    const keys = InputManager.instance.getState();
+    const actions = InputManager.instance.getState();
     const input = {
       type: "vehicle",
       seq: vehicleInputSeq++,
-      keys: keys,
+      actions: actions,
       dt: FIXED_DT,
       camQuat: camera.quaternion.clone(),
       camPos: camera.position.clone(),
@@ -1183,7 +1183,7 @@ function updateLocalVehiclePrediction(vehicle: ClientVehicle, delta: number) {
     socket.emit("vehicleInput", input);
 
     // Predict immediately for responsiveness
-    vehicle.predictMovementCustom(keys);
+    vehicle.predictMovementCustom(actions);
     accumulator -= FIXED_DT;
 
     // --- 2) Reconciliation (server authority) ---
@@ -1324,10 +1324,10 @@ let recoilYawOffset = 0;
 let prevRespawn = false;
 
 function updateLocalPlayer(player: ClientPlayer, delta: number) {
-  const keys = InputManager.instance.getState();
+  const input = InputManager.instance.getState();
 
   if (player.isDead) {
-    const respawnPressed = keys.r && !prevRespawn;
+    const respawnPressed = input.reload && !prevRespawn;
 
     if (!player.onDeathScreen) {
       onDeathEvent(player);
@@ -1338,13 +1338,13 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
       socket.emit("player-respawn");
     }
 
-    prevRespawn = keys.r;
+    prevRespawn = input.reload;
 
     return;
   }
 
-  const aiming = keys.mouseRight;
-  const shooting = keys.mouseLeft && aiming;
+  const aiming = input.aim;
+  const shooting = input.shoot && aiming;
   const shotPressed = shooting && !prevFire; // rising edge → one shot only
 
   const rightHandItem = player.rightHand.item as ClientWeapon;
