@@ -329,16 +329,6 @@ function registerSocketEvents(world: World) {
       }
     }
 
-    // data.vehicles?.forEach((networkVehicle: any) => {
-    //   const clientVehicle = world.getObjById(
-    //     networkVehicle.id,
-    //     world.vehicles
-    //   ) as ClientVehicle;
-
-    //   if (!clientVehicle) return;
-
-    // });
-
     snapshotBuffer.push({
       time: data.time,
       players: data.players,
@@ -1159,8 +1149,14 @@ function updateLocalCharacterPrediction(player: ClientPlayer, delta: number) {
       }
 
       // Replay unprocessed inputs after correction
+      // for chatgpt.. the issue happens i think cuz we calling this again.. i think it's overriding the quat or smth..
       for (const pending of pendingInputs) {
-        playerObject.predictMovement(pending.dt, pending.keys, pending.camQuat);
+        playerObject.predictMovement(
+          pending.dt,
+          pending.keys,
+          pending.camQuat,
+          false
+        );
       }
 
       // Clear snapshot

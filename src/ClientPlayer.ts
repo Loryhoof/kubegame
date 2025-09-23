@@ -470,21 +470,22 @@ class ClientPlayer {
     return { pos, vel };
   }
 
-  predictMovement(delta: number, keys?: any, quat?: THREE.Quaternion) {
-    if (!this.isLocalPlayer) return;
-
-    if (this.isDead) return;
+  predictMovement(
+    delta: number,
+    keys?: any,
+    quat?: THREE.Quaternion,
+    doRotate = true
+  ) {
+    if (!this.isLocalPlayer || this.isDead) return;
 
     const input = keys ?? InputManager.instance.getState();
     const inputDir = new THREE.Vector3();
 
     const GRAVITY = -9.81;
-    const JUMP_IMPULSE = 0.8; // backend impulse
-    const JUMP_FORCE = JUMP_IMPULSE / PLAYER_MASS;
     const BASE_SPEED = 4;
     const WALK_SPEED = BASE_SPEED;
     const RUN_SPEED = BASE_SPEED * 2;
-    const MAX_WALL_DISTANCE = 0.3;
+
     let speed = input.sprint ? RUN_SPEED : WALK_SPEED;
     if (input.aim) speed = WALK_SPEED;
 
@@ -496,101 +497,63 @@ class ClientPlayer {
     if (input.moveRight) inputDir.x += 1;
 
     const hasInput = inputDir.lengthSq() > 0;
-
     let worldDir = new THREE.Vector3();
 
     if (hasInput) {
       inputDir.normalize();
 
       const camQuat = quat || CameraManager.instance.getCamera().quaternion;
-      const euler = new THREE.Euler(0, 0, 0, "YXZ");
-      euler.setFromQuaternion(camQuat);
-
+      const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
       const yawQuat = new THREE.Quaternion().setFromAxisAngle(
         new THREE.Vector3(0, 1, 0),
         euler.y
       );
-
       worldDir = inputDir.applyQuaternion(yawQuat);
     }
 
-    // ---- JUMP ----
     if (input.jump) this.jump();
 
     const targetVel = hasInput
       ? worldDir.multiplyScalar(speed)
       : new THREE.Vector3(0, 0, 0);
-
     this.velocity.copy(targetVel);
 
     const rb = this.physicsObject.rigidBody;
-
     const current = rb.linvel();
-
     const desired = new THREE.Vector3(
       this.velocity.x,
       current.y,
       this.velocity.z
     );
-
     ClientPhysics.instance.setLinearVelocity(rb, desired);
 
-    // Sync position
     this.setPosition(rb.translation() as THREE.Vector3);
 
-    // ---- ROTATE PLAYER ----
-    const horizontalVelocity = new THREE.Vector3(
-      this.velocity.x,
-      0,
-      this.velocity.z
-    );
-
-    // if (horizontalVelocity.lengthSq() > 0.0001) {
-    //   if (input.aim) {
-    //     const camQuat = quat || CameraManager.instance.getCamera().quaternion;
-    //     const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
-
-    //     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-    //       new THREE.Vector3(0, 1, 0),
-    //       euler.y
-    //     );
-
-    //     this.dummy.quaternion.slerp(yawQuat, 0.25);
-    //   } else {
-    //     const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
-    //     const targetQuat = new THREE.Quaternion().setFromAxisAngle(
-    //       new THREE.Vector3(0, 1, 0),
-    //       yaw
-    //     );
-    //     this.dummy.quaternion.slerp(targetQuat, 0.25);
-    //   }
-    // }\\
-
-    // pick targetQuat depending on aim vs movement like before
-    let targetQuat: THREE.Quaternion | null = null;
-
-    if (horizontalVelocity.lengthSq() > 0.0001) {
-      if (input.aim) {
-        const camQuat = quat || CameraManager.instance.getCamera().quaternion;
-        const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
-        const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(0, 1, 0),
-          euler.y
-        );
-        targetQuat = yawQuat;
-      } else {
-        const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
-        targetQuat = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(0, 1, 0),
-          yaw
-        );
+    // ---- ROTATION ONLY IF ALLOWED ----
+    if (doRotate) {
+      const horizontalVelocity = new THREE.Vector3(
+        this.velocity.x,
+        0,
+        this.velocity.z
+      );
+      if (horizontalVelocity.lengthSq() > 0.0001) {
+        if (input.aim) {
+          const camQuat = quat || CameraManager.instance.getCamera().quaternion;
+          const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+          const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            euler.y
+          );
+          this.dummy.quaternion.slerp(yawQuat, 0.25);
+        } else {
+          const yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+          const targetQuat = new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            yaw
+          );
+          this.dummy.quaternion.slerp(targetQuat, 0.25);
+        }
       }
-    }
-
-    if (targetQuat) {
-      const blendSpeed = 10.0; // adjust responsiveness
-      const t = 1 - Math.exp(-blendSpeed * delta); // frame-rate independent
-      this.dummy.quaternion.slerp(targetQuat, t);
     }
   }
 
