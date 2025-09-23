@@ -2,6 +2,8 @@ import "../../index.css";
 import NetworkManager from "../NetworkManager";
 import { isMobile } from "../utils";
 
+//
+
 function KeyBackground({ label, info }: { label: string; info: string }) {
   return (
     <div className="items-center align-center text-center flex flex-row gap-2">
