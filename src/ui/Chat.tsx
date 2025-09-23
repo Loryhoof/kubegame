@@ -5,6 +5,8 @@ import NetworkManager from "../NetworkManager";
 import { Socket } from "socket.io-client";
 import ChatManager, { ChatMessage } from "../ChatManager";
 import DebugState from "../state/DebugState";
+import { LocalUserSettings } from "../main";
+import { USER_SETTINGS_LOCAL_STORE } from "../constants";
 
 const CHAR_LIMIT = 500;
 
@@ -78,6 +80,15 @@ export default function Chat() {
         });
 
         addSystemMessage(`Changed nickname to: ${value}`);
+
+        const localUserSettings: LocalUserSettings = {
+          nickname: value,
+        };
+
+        localStorage.setItem(
+          USER_SETTINGS_LOCAL_STORE,
+          JSON.stringify(localUserSettings)
+        );
       },
     },
     give: {
@@ -211,7 +222,6 @@ export default function Chat() {
   }, [isTyping]);
 
   const formatUsername = (msg: ChatMessage): string => {
-    console.log(msg);
     if (msg.nickname && msg.nickname.length > 0) return msg.nickname;
 
     return msg.id.slice(0, 4);

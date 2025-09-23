@@ -14,6 +14,7 @@ import CameraManager from "./CameraManager";
 import DebugState from "./state/DebugState";
 import ClientWeapon from "./ClientWeapon";
 import { randFloat } from "three/src/math/MathUtils";
+import { USER_SETTINGS_LOCAL_STORE } from "./constants";
 
 let world: World | null = null;
 
@@ -21,6 +22,10 @@ export type ServerNotification = {
   type: "error" | "success" | "info" | "achievement";
   content: string;
   duration?: number;
+};
+
+export type LocalUserSettings = {
+  nickname?: string;
 };
 
 type Snapshot = {
@@ -1438,6 +1443,14 @@ function animate(world: World) {
   requestAnimationFrame(() => animate(world));
 }
 
+function getLocalUserSettings(): LocalUserSettings | null {
+  const settings = localStorage.getItem(USER_SETTINGS_LOCAL_STORE) as string;
+
+  if (!settings) return null;
+
+  return JSON.parse(settings);
+}
+
 // ---------------- Init ----------------
 async function init() {
   const assetsManager = AssetsManager.instance;
@@ -1470,6 +1483,9 @@ async function init() {
   setTimeout(() => {
     worldIsReady = true;
     socket.emit("readyForWorld");
+
+    const settings = getLocalUserSettings();
+    if (settings) socket.emit("init-user-settings", settings);
   }, 2000);
 }
 
