@@ -90,6 +90,35 @@ export default class ClientPhysics {
   //   this.physicsWorld.createImpulseJoint(params, a.rigidBody, b.rigidBody, true);
   // }
 
+  createHeightfield(
+    position: Vector3,
+    rotation: Quaternion,
+    heights: Float32Array,
+    scale: Vector3,
+    nrows: number,
+    ncols: number
+  ) {
+    const colliderDesc = RAPIER.ColliderDesc.heightfield(
+      nrows,
+      ncols,
+      heights,
+      scale
+    );
+    const collider = this.physicsWorld!.createCollider(colliderDesc);
+
+    const rbDesc = RAPIER.RigidBodyDesc.fixed()
+      .setTranslation(position.x, position.y, position.z)
+      .setRotation({
+        w: rotation.w,
+        x: rotation.x,
+        y: rotation.y,
+        z: rotation.z,
+      });
+    const rigidbody = this.physicsWorld!.createRigidBody(rbDesc);
+
+    return { rigidbody, collider };
+  }
+
   createDynamicBox(position: Vector3, scale: Vector3): PhysicsObject {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(
       position.x,

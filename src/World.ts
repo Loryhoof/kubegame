@@ -7,6 +7,7 @@ import NetworkManager from "./NetworkManager";
 import ClientNPC from "./ClientNPC";
 import ClientPhysics from "./ClientPhysics";
 import ClientPlayer from "./ClientPlayer";
+import TerrainManager, { TerrainData } from "./Terrain/TerrainManager";
 
 const base = import.meta.env.BASE_URL;
 
@@ -17,15 +18,6 @@ type WorldStateData = {
   npcs: ClientNPC[];
 };
 
-type TerrainData = {
-  position: THREE.Vector3;
-  quaternion: THREE.Quaternion;
-  heights: ArrayBuffer;
-  nrows: number;
-  ncols: number;
-  scale: THREE.Vector3;
-};
-
 export default class World {
   private scene: THREE.Scene;
   public entities: any[] = [];
@@ -34,8 +26,11 @@ export default class World {
   public npcs: any[] = [];
   public players: Map<string, ClientPlayer> = new Map();
 
+  private terrainManager: TerrainManager;
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+    this.terrainManager = new TerrainManager(scene);
   }
 
   genWorld() {
@@ -101,7 +96,7 @@ export default class World {
 
     const fogNear = 30;
     const fogFar = 200;
-    const fog = new THREE.Fog(0x95f2f5, fogNear, fogFar);
+    const fog = new THREE.Fog(0xf7d599, fogNear, fogFar);
     //this.scene.fog = fog;
 
     ground.position.z = -10;
@@ -110,8 +105,8 @@ export default class World {
 
     ground.receiveShadow = true;
 
-    this.scene.add(ground);
-    this.entities.push({ id: 1, mesh: ground });
+    // this.scene.add(ground);
+    //this.entities.push({ id: 1, mesh: ground });
 
     this.genWorld();
 
@@ -312,253 +307,7 @@ export default class World {
     }
     if (terrains) {
       terrains.forEach((terrain: TerrainData) => {
-        const { position, heights, nrows, ncols, scale } = terrain;
-
-        const newHeights = new Float32Array(heights);
-
-        const geometry = new THREE.BufferGeometry();
-        const vertices: number[] = [];
-        const indices: number[] = [];
-        const uvs: number[] = [];
-
-        // Compute half-size to center the mesh
-        const halfWidth = (ncols - 1) / 2;
-        const halfDepth = (nrows - 1) / 2;
-
-        const cactusPositions: THREE.Vector3[] = [];
-        const rockPositions: THREE.Vector3[] = [];
-
-        const cactusObj = new THREE.Mesh(
-          new THREE.BoxGeometry(0.3, 5, 0.3),
-          new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-        );
-
-        const rockObj = new THREE.Mesh(
-          new THREE.BoxGeometry(1, 1, 1),
-          new THREE.MeshStandardMaterial({ color: 0x8c5c37 })
-        );
-
-        const objs = [cactusObj, rockObj];
-
-        const lastHighest = new THREE.Vector3(0, 0, 0);
-
-        let lowestHeight = Infinity;
-        let highestHeight = -Infinity;
-
-        // Row-major vertices, centered around origin
-        for (let i = 0; i < nrows; i++) {
-          for (let j = 0; j < ncols; j++) {
-            const x = i - halfDepth; // i → X axis
-            const y = newHeights[i * ncols + j];
-            const z = j - halfWidth; // j → Z axis
-            vertices.push(x, y, z);
-
-            // apply the scale that you'll set on the mesh
-            const worldX = x * (scale.x / (ncols - 1));
-            const worldY = y * scale.y;
-            const worldZ = z * (scale.z / (nrows - 1));
-
-            // then apply the translation (mesh.position.copy(position))
-            const finalX = worldX + position.x;
-            const finalY = worldY + position.y;
-            const finalZ = worldZ + position.z;
-
-            if (worldY > lastHighest.y) {
-              lastHighest.set(worldX, worldY, worldZ);
-            }
-
-            if (worldY > highestHeight) {
-              highestHeight = worldY;
-            }
-
-            if (worldY < lowestHeight) {
-              lowestHeight = worldY;
-            }
-
-            if (worldY >= 0) {
-              if (Math.random() > 0.95) {
-                let mesh = getRandomFromArray(["cactus", "rock"]);
-
-                if (mesh == "cactus") {
-                  cactusPositions.push(
-                    new THREE.Vector3(finalX, finalY, finalZ)
-                  );
-                } else {
-                  rockPositions.push(new THREE.Vector3(finalX, finalY, finalZ));
-                }
-              }
-            }
-
-            // UVs normalized to [0,1]
-            const u = j / (ncols - 1);
-            const v = i / (nrows - 1);
-            uvs.push(u, v);
-          }
-        }
-
-        console.log(lowestHeight, highestHeight, "LOWEST AND HIEHGTS");
-
-        const waterPLane = new THREE.Mesh(
-          new THREE.BoxGeometry(10000, 0.1, 1000),
-          new THREE.MeshStandardMaterial({
-            color: 0x47e7ff,
-            transparent: true,
-            opacity: 0.7,
-          })
-        );
-
-        waterPLane.position.y = -1;
-
-        // const bridge = new THREE.Mesh(
-        //   new THREE.BoxGeometry(6, 0.5, 30),
-        //   new THREE.MeshStandardMaterial({ color: 0x383838 })
-        // );
-        // bridge.position.set(60, 0, 28);
-        // bridge.rotation.y = Math.PI / 2;
-
-        // this.scene.add(bridge);
-
-        this.scene.add(waterPLane);
-        const cactusInstancedMesh = new THREE.InstancedMesh(
-          cactusObj.geometry,
-          cactusObj.material,
-          cactusPositions.length
-        );
-
-        cactusPositions.forEach((position, index) => {
-          const matrix4 = new THREE.Matrix4();
-          matrix4.setPosition(position);
-
-          cactusInstancedMesh.setMatrixAt(index, matrix4);
-        });
-
-        this.scene.add(cactusInstancedMesh);
-
-        const rockInstancedMesh = new THREE.InstancedMesh(
-          rockObj.geometry,
-          rockObj.material,
-          rockPositions.length
-        );
-
-        rockPositions.forEach((position, index) => {
-          const matrix4 = new THREE.Matrix4();
-          matrix4.setPosition(position);
-
-          rockInstancedMesh.setMatrixAt(index, matrix4);
-        });
-
-        this.scene.add(rockInstancedMesh);
-
-        const statueObj = new THREE.Mesh(
-          new THREE.BoxGeometry(2, 10, 2),
-          new THREE.MeshStandardMaterial({ color: 0x000000 })
-        );
-        statueObj.position.copy(lastHighest);
-        this.scene.add(statueObj);
-
-        // Create triangle indices
-        for (let i = 0; i < nrows - 1; i++) {
-          for (let j = 0; j < ncols - 1; j++) {
-            const a = i * ncols + j;
-            const b = i * ncols + (j + 1);
-            const c = (i + 1) * ncols + j;
-            const d = (i + 1) * ncols + (j + 1);
-
-            indices.push(a, b, d);
-            indices.push(a, d, c);
-          }
-        }
-
-        geometry.setAttribute(
-          "position",
-          new THREE.Float32BufferAttribute(vertices, 3)
-        );
-        geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-        geometry.setIndex(indices);
-        geometry.computeVertexNormals();
-
-        // const texture = loader.load("/green.jpg");
-        // texture.wrapS = THREE.RepeatWrapping;
-        // texture.wrapT = THREE.RepeatWrapping;
-        // texture.repeat.set(16 * 12, 16 * 12);
-
-        const shaderMaterial = new THREE.ShaderMaterial({
-          uniforms: {
-            baseColor: { value: new THREE.Color(0xf7d299) }, // green base color
-            minHeight: { value: lowestHeight }, // lowest terrain y
-            maxHeight: { value: highestHeight }, // highest terrain y
-
-            // Fog uniforms
-            fogColor: { value: new THREE.Color(0xf7d299) }, // set to scene.fog.color
-            fogNear: { value: 30 }, // match scene.fog.near
-            fogFar: { value: 200 }, // match scene.fog.far
-          },
-          vertexShader: `
-    varying float vHeight;
-    varying vec3 vPosition;
-
-    void main() {
-      vHeight = position.y; // pass height to fragment shader
-      vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz; // view-space position
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-          fragmentShader: `
-    uniform vec3 baseColor;
-    uniform float minHeight;
-    uniform float maxHeight;
-
-    uniform vec3 fogColor;
-    uniform float fogNear;
-    uniform float fogFar;
-
-    varying float vHeight;
-    varying vec3 vPosition;
-
-    void main() {
-      // normalize height to [0,1]
-      float h = (vHeight - minHeight) / (maxHeight - minHeight);
-      h = clamp(h, 0.0, 1.0);
-      h = pow(h, 1.5); // exaggerates shadows in low regions
-
-      // dark at low, bright at high
-      vec3 color = baseColor * (0.4 + 1.0 * h);
-
-      if(h < 0.20) {
-        color = vec3(0.3294, 0.3294, 0.3294);
-
-
-      };
-
-     
-
-      // ---- Fog ----
-      float depth = length(vPosition);
-      float fogFactor = smoothstep(fogNear, fogFar, depth);
-      color = mix(color, fogColor, fogFactor);
-
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `,
-          side: THREE.DoubleSide,
-          fog: true, // important! enables fog support
-        });
-
-        const material = new THREE.MeshStandardMaterial({
-          color: 0xff0000,
-          wireframe: true,
-          side: THREE.DoubleSide,
-        });
-
-        const mesh = new THREE.Mesh(geometry, shaderMaterial);
-
-        // Apply world transform (Rapier heightfield position)
-        mesh.position.copy(position);
-
-        // Apply scale to match physics heightfield
-        mesh.scale.set(scale.x / (ncols - 1), scale.y, scale.z / (nrows - 1));
-
-        this.scene.add(mesh);
+        this.terrainManager.create(terrain);
       });
     }
 
@@ -736,6 +485,100 @@ export default class World {
     }
     return null;
   }
+
+  // createTerrain() {
+  //   const nrows = 200;
+  //   const ncols = 200;
+  //   const heights = new Float32Array(nrows * ncols);
+
+  //   const position = new THREE.Vector3();
+  //   const quaternion = new THREE.Quaternion();
+
+  //   const scaleFactor = 3;
+  //   const heightScaleFactor = 1.5;
+
+  //   const roadWidth = 6;
+  //   const roadFlattenHeight = -1.5;
+
+  //   const circleA = { centerX: 0, centerZ: 0, radius: 10 };
+  //   const circleB = { centerX: 200, centerZ: 200, radius: 10 };
+
+  //   const noise2D = createNoise2D();
+
+  //   // Define Bezier control points for the road
+  //   const roadP0 = new THREE.Vector3(circleA.centerX, 0, circleA.centerZ);
+  //   const roadP1 = new THREE.Vector3(circleA.centerX + 100, 0, circleA.centerZ);
+  //   const roadP2 = new THREE.Vector3(circleB.centerX, 0, circleB.centerZ + 100);
+  //   const roadP3 = new THREE.Vector3(circleB.centerX, 0, circleB.centerZ);
+
+  //   for (let x = 0; x < nrows; x++) {
+  //     for (let z = 0; z < ncols; z++) {
+  //       const index = x * ncols + z;
+
+  //       let noise = noise2D(x, z);
+  //       let sinZ = Math.sin(z) * 0.1 + noise * 0.05;
+  //       let sinX = Math.sin(x) * 0.1 + noise * 0.05;
+  //       let currentHeight = sinX + sinZ;
+
+  //       // Flatten circles
+  //       const dxA = circleA.centerX - x;
+  //       const dzA = circleA.centerZ - z;
+  //       const distanceFromCircleA = Math.sqrt(dxA * dxA + dzA * dzA);
+
+  //       const dxB = circleB.centerX - x;
+  //       const dzB = circleB.centerZ - z;
+  //       const distanceFromCircleB = Math.sqrt(dxB * dxB + dzB * dzB);
+
+  //       if (
+  //         distanceFromCircleA <= circleA.radius ||
+  //         distanceFromCircleB <= circleB.radius
+  //       ) {
+  //         currentHeight = roadFlattenHeight;
+  //       } else {
+  //         // Flatten along Bezier road
+  //         const point = new THREE.Vector3(x, 0, z);
+  //         const distToRoad = distanceToBezier(
+  //           point,
+  //           roadP0,
+  //           roadP1,
+  //           roadP2,
+  //           roadP3
+  //         );
+  //         if (distToRoad <= roadWidth / 2) {
+  //           currentHeight = roadFlattenHeight;
+  //         }
+  //       }
+
+  //       heights[index] = currentHeight;
+  //     }
+  //   }
+
+  //   const scale = new THREE.Vector3(
+  //     nrows * scaleFactor,
+  //     2 * heightScaleFactor,
+  //     ncols * scaleFactor
+  //   );
+
+  //   // const terrainData: TerrainData = {
+  //   //   position,
+  //   //   quaternion,
+  //   //   heights,
+  //   //   nrows,
+  //   //   ncols,
+  //   //   scale,
+  //   // };
+
+  //   // this.terrains.push(terrainData);
+
+  //   ClientPhysics.instance.createHeightfield(
+  //     position,
+  //     quaternion,
+  //     heights,
+  //     scale,
+  //     nrows - 1,
+  //     ncols - 1
+  //   );
+  // }
 
   updateState(worldData: WorldStateData) {
     const { vehicles, npcs } = worldData;
