@@ -27,3 +27,12 @@ export function isMobile() {
 export function isIOS() {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
+
+export function parseInviteURL(): string | null {
+  const url = new URL(window.location.href);
+  const params = url.searchParams;
+
+  const lobbyId = params.get("lobby");
+
+  return lobbyId;
+}

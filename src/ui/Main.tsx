@@ -11,9 +11,20 @@ import { isMobile } from "../utils";
 import Notifications from "./Notifications";
 import Crosshair from "./Crosshair";
 import DeathScreen from "./DeathScreen";
+import StartingScreen from "./StartingScreen";
+import DebugState from "../state/DebugState";
+import MinigameHUD from "./MinigameHUD";
 
 export type DeathState = {
   kills: number;
+};
+
+const VersionSection = () => {
+  return (
+    <p className="fixed bottom-5 right-5 text-xs z-[9999] text-white">
+      v{DebugState.instance.buildVersion}
+    </p>
+  );
 };
 
 const Main = () => {
@@ -21,6 +32,19 @@ const Main = () => {
 
   const [isDead, setIsDead] = useState<boolean>(false);
   const [deathState, setDeathState] = useState<DeathState | null>(null);
+
+  const [worldIsLoading, setWorldIsLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const params = url.searchParams;
+
+    const lobbyId = params.get("lobby");
+
+    if (lobbyId) {
+      console.log(`Invite to lobby: ${lobbyId}`);
+    }
+  }, []);
 
   useEffect(() => {
     const onLoadingStatus = (e: CustomEvent<any>) => {
@@ -36,12 +60,19 @@ const Main = () => {
       setDeathState(d.state);
     };
 
+    const onStartLoadingWorld = () => {
+      setWorldIsLoading(true);
+      console.log("event called");
+    };
+
     window.addEventListener("loading-status", onLoadingStatus as any);
     window.addEventListener("ui-state", onUIState as any);
+    window.addEventListener("join-world", onStartLoadingWorld as any);
 
     return () => {
       window.removeEventListener("loading-status", onLoadingStatus as any);
       window.removeEventListener("ui-state", onUIState as any);
+      window.removeEventListener("join-world", onStartLoadingWorld as any);
     };
   }, []);
 
@@ -60,11 +91,17 @@ const Main = () => {
               <Notifications />
               {!isMobile() && <Chat />}
               <Crosshair />
+              <MinigameHUD />
             </>
           )}
         </>
       )}
-      <LoadingScreen />
+
+      {!worldIsLoading && <StartingScreen />}
+      {worldIsLoading && <LoadingScreen />}
+      {/* <LoadingScreen /> */}
+
+      <VersionSection />
     </>
   );
 };

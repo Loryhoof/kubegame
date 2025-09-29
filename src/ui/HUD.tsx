@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { BiCoinStack } from "react-icons/bi";
 import { isMobile } from "../utils";
 import DeathScreen from "./DeathScreen";
+import { LobbyDetails, MinigameMeta } from "../types/Lobby";
 
 type WeaponData = {
   ammo: number;
@@ -21,6 +22,7 @@ type EventData = {
   weapon: WeaponData;
   ammo: number;
   isDead: boolean;
+  lobbyDetails: LobbyDetails;
 };
 
 export default function HUD() {
@@ -34,6 +36,7 @@ export default function HUD() {
     weaponData: null as WeaponData | null,
     ammo: 0,
     isDead: false,
+    lobbyDetails: null as LobbyDetails | null,
   });
 
   const [deathState, setDeathState] = useState(null);
@@ -50,12 +53,37 @@ export default function HUD() {
       ammo: d.ammo,
       weaponData: d.weapon,
       isDead: d.isDead,
+      lobbyDetails: d.lobbyDetails,
     });
   }, []);
 
   const onPlayerDeath = (state: any) => {
     const d = state.detail;
     setDeathState(d);
+  };
+
+  const formatLobbyDetails = () => {
+    if (!lobbyDetails) return "Unknown Lobby";
+
+    if (lobbyDetails.type == "Hub") return "Hub World";
+
+    if (lobbyDetails.type == "Minigame") return `Lobby Id: ${lobbyDetails.id}`;
+
+    return "Oops...";
+  };
+
+  const MinigameInfo = ({ minigame }: { minigame: MinigameMeta }) => {
+    return (
+      <>
+        <div className="fixed top-3 left-1/2">
+          <div>
+            <p>{minigame.type}</p>
+            <p>{minigame.name}</p>
+            <p>{minigame.description}</p>
+          </div>
+        </div>
+      </>
+    );
   };
 
   useEffect(() => {
@@ -76,12 +104,15 @@ export default function HUD() {
     weaponData,
     ammo,
     isDead,
+    lobbyDetails,
   } = state;
 
   return (
     <>
       {/* Top Left: Players & Ping */}
       <div className="fixed top-3 left-3 z-[1000] min-w-[150px] bg-black/50 rounded-md p-2 text-white text-xs leading-[1.6] space-y-1">
+        <div>{formatLobbyDetails()}</div>
+
         <div className="flex justify-between text-gray-200">
           <span>{playerCount} online</span>
           <span>{ping} ms</span>
@@ -92,6 +123,10 @@ export default function HUD() {
           {position.z.toFixed(0)}
         </div>
       </div>
+
+      {lobbyDetails?.minigame && (
+        <MinigameInfo minigame={lobbyDetails.minigame} />
+      )}
 
       {/* Top Right: Coins */}
       <div className="fixed top-3 right-3 z-[1000] bg-black/50 rounded-md px-3 py-1 text-yellow-400 font-bold text-sm flex items-center gap-1 shadow-lg border border-yellow-500/30">

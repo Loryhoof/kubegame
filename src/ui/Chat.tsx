@@ -123,6 +123,39 @@ export default function Chat() {
         addSystemMessage(`Commited suicide`);
       },
     },
+    race: {
+      description: "Start race minigame",
+      usage: "/race",
+      execute: (args) => {
+        socket.emit("user-command", {
+          command: "race",
+        });
+
+        addSystemMessage(`Started race lobby`);
+      },
+    },
+    hub: {
+      description: "Go to hub world",
+      usage: "/hub",
+      execute: (args) => {
+        socket.emit("user-command", {
+          command: "hub",
+        });
+
+        addSystemMessage(`Joined hub`);
+      },
+    },
+    server: {
+      description: "Get server info",
+      usage: "/server",
+      execute: (args) => {
+        socket.emit("user-command", {
+          command: "server",
+        });
+
+        addSystemMessage(`Command: Get server info`);
+      },
+    },
     help: {
       description: "List all commands",
       usage: "/help",
@@ -198,8 +231,15 @@ export default function Chat() {
       ]);
     };
 
+    const handleServerInfoCommand = (e: any) => {
+      addSystemMessage(`${JSON.stringify(e)}`);
+    };
+
+    socket.on("server-info", handleServerInfoCommand);
     socket.on("chat-message", handleMessage);
+
     return () => {
+      socket.off("server-info", handleServerInfoCommand);
       socket.off("chat-message", handleMessage);
     };
   }, [socket]);

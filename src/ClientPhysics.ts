@@ -33,6 +33,12 @@ export default class ClientPhysics {
     this.physicsIsReady = true;
   }
 
+  restart() {
+    this.physicsIsReady = false;
+    this.physicsWorld = new RAPIER.World(new RAPIER.Vector3(0.0, -9.81, 0.0));
+    this.physicsIsReady = true;
+  }
+
   createPlayerCapsule(): PhysicsObject {
     if (!this.physicsIsReady) {
       console.log("Pjysics aint ready");
@@ -234,6 +240,13 @@ export default class ClientPhysics {
   remove(physicsObject: PhysicsObject) {
     this.physicsWorld!.removeRigidBody(physicsObject.rigidBody);
     this.physicsWorld!.removeCollider(physicsObject.collider, true);
+  }
+
+  clear() {
+    if (this.physicsWorld) {
+      this.physicsWorld.free();
+      this.physicsWorld = null;
+    }
   }
 
   update() {

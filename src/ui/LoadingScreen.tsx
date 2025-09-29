@@ -101,13 +101,13 @@ const LoadingScreen = () => {
     <>
       {active && (
         <div
-          className={`fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900 select-none transition-opacity duration-500 ${
+          className={`fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900 select-none transition-opacity duration-500 ${
             fadeOut ? "opacity-0" : "opacity-100"
           }`}
         >
           <div className="p-6 rounded-lg w-96 flex flex-col items-center space-y-4">
             <h1 className="text-3xl font-bold text-yellow-400 tracking-wider font-mono">
-              KUBEGAME
+              kubegame
             </h1>
 
             {!error && (
