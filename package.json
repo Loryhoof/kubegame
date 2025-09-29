@@ -39,7 +39,7 @@
     "vite": "^7.1.1"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "desktop": "concurrently \"vite\" \"electron electron.js\"",
     "build": "vite build",
     "desktop:build": "npm run build && electron-builder"
