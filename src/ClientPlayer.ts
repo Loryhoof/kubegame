@@ -67,6 +67,7 @@ type StateData = {
   camQuat: THREE.Quaternion;
   isDead: boolean;
   killCount: number;
+  lobbyId: string;
 };
 
 class ClientPlayer {
@@ -147,6 +148,8 @@ class ClientPlayer {
   public onDeathScreen: boolean = false;
 
   public killCount: number = 0;
+
+  public lobbyId: string | null = null;
 
   constructor(
     world: World,
@@ -834,7 +837,10 @@ class ClientPlayer {
       camQuat,
       isDead,
       killCount,
+      lobbyId,
     } = state;
+
+    this.lobbyId = lobbyId;
 
     this.viewQuaternion = camQuat;
 

@@ -3,6 +3,7 @@ export default class DebugState {
 
   public reconciliation: boolean = true;
   public showGhost: boolean = false;
+  public buildVersion: string = "0.1.32";
 
   public static get instance(): DebugState {
     if (!this._instance) {

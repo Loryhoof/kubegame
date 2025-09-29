@@ -7,6 +7,7 @@ import NetworkManager from "./NetworkManager";
 import ClientNPC from "./ClientNPC";
 import ClientPhysics from "./ClientPhysics";
 import ClientPlayer from "./ClientPlayer";
+import { LobbyDetails } from "./types/Lobby";
 
 const base = import.meta.env.BASE_URL;
 
@@ -27,6 +28,7 @@ type TerrainData = {
 };
 
 export default class World {
+  public id: string;
   private scene: THREE.Scene;
   public entities: any[] = [];
   public interactables: any[] = [];
@@ -34,8 +36,11 @@ export default class World {
   public npcs: any[] = [];
   public players: Map<string, ClientPlayer> = new Map();
 
-  constructor(scene: THREE.Scene) {
+  public lobbyDetails: LobbyDetails | null = null;
+
+  constructor(scene: THREE.Scene, id: string) {
     this.scene = scene;
+    this.id = id;
   }
 
   genWorld() {
@@ -92,10 +97,67 @@ export default class World {
     const texture = loader.load(`${base}prototype.jpg`);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(16 * 8, 16 * 8);
+    texture.repeat.set(16 * 80, 16 * 80);
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(500, 500, 1, 1),
+      new THREE.PlaneGeometry(5000, 5000, 1, 1),
+      new THREE.MeshStandardMaterial({ map: texture })
+    );
+
+    const fogNear = 30;
+    const fogFar = 200;
+    const fog = new THREE.Fog(0x95f2f5, fogNear, fogFar);
+    //this.scene.fog = fog;
+
+    ground.position.z = -10;
+    ground.position.y = -0.5;
+    ground.rotation.x = -Math.PI / 2;
+
+    ground.receiveShadow = true;
+
+    this.scene.add(ground);
+    this.entities.push({ id: 1, mesh: ground });
+
+    this.genWorld();
+
+    // ground
+    ClientPhysics.instance.createFixedBox(
+      new THREE.Vector3(0, -0.5, 0),
+      new THREE.Vector3(500, 0.1, 500)
+    );
+  }
+
+  restart() {
+    ClientPhysics.instance.restart();
+
+    //   private scene: THREE.Scene;
+    // public entities: any[] = [];
+    // public interactables: any[] = [];
+    // public vehicles: ClientVehicle[] = [];
+    // public npcs: any[] = [];
+    // public players: Map<string, ClientPlayer> = new Map();
+
+    // public lobbyDetails: LobbyDetails | null = null;
+
+    this.entities = [];
+    this.interactables = [];
+    this.vehicles = [];
+    this.npcs = [];
+    this.players = new Map();
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    this.scene.add(light);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+    this.scene.add(ambientLight);
+
+    const texture = loader.load(`${base}prototype.jpg`);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(16 * 80, 16 * 80);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(5000, 5000, 1, 1),
       new THREE.MeshStandardMaterial({ map: texture })
     );
 
@@ -145,7 +207,24 @@ export default class World {
       vehicles,
       terrains,
       npcs,
+      lobby,
     } = data;
+
+    // this.id = lobby;
+
+    this.lobbyDetails = lobby;
+
+    this.id = this.lobbyDetails!.id;
+
+    if (this.lobbyDetails?.type == "Minigame") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("lobby", this.id);
+      window.history.pushState({}, "", url);
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("lobby");
+      window.history.pushState({}, "", url);
+    }
 
     if (zones) {
       zones.forEach((zone: any) => {
@@ -619,6 +698,7 @@ export default class World {
   }
 
   createZone(data: any) {
+    console.log("data creating zone", data);
     const { id, width, height, depth, position, quaternion, color } = data;
     const zoneMesh = new THREE.Mesh(
       new THREE.BoxGeometry(width, height, depth),
@@ -782,6 +862,65 @@ export default class World {
     //     color: networkNPC.color,
     //   });
     // });
+  }
+
+  cleanup() {
+    // --- Remove & dispose a single mesh ---
+    const disposeMesh = (mesh: THREE.Object3D) => {
+      if (mesh instanceof THREE.Mesh) {
+        if (mesh.geometry) mesh.geometry.dispose();
+
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => m.dispose && m.dispose());
+          } else {
+            (mesh.material as any).dispose?.();
+          }
+        }
+      }
+      this.scene.remove(mesh);
+    };
+
+    // --- Remove Entities ---
+    this.entities.forEach((entity) => {
+      if (entity.mesh) disposeMesh(entity.mesh);
+    });
+    this.entities = [];
+
+    // --- Remove Interactables ---
+    this.interactables.forEach((interactable) => {
+      if (interactable.mesh) disposeMesh(interactable.mesh);
+    });
+    this.interactables = [];
+
+    // --- Remove Vehicles ---
+    this.vehicles.forEach((vehicle) => {
+      vehicle.cleanup?.();
+      if (vehicle.mesh) disposeMesh(vehicle.mesh);
+    });
+    this.vehicles = [];
+
+    // --- Remove NPCs ---
+    this.npcs.forEach((npc) => {
+      npc.cleanup?.();
+      if (npc.dummy) disposeMesh(npc.dummy);
+    });
+    this.npcs = [];
+
+    // --- Remove Players ---
+    this.players.forEach((player) => {
+      player.remove?.();
+    });
+    this.players.clear();
+
+    // --- Clear Physics World ---
+    ClientPhysics.instance?.clear?.();
+
+    // --- Remove all children from the scene ---
+    while (this.scene.children.length > 0) {
+      const child = this.scene.children[0];
+      disposeMesh(child);
+    }
   }
 
   update(delta: number) {

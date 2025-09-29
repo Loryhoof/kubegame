@@ -3,7 +3,12 @@ import World from "./World";
 import InputManager from "./InputManager";
 import ClientPlayer from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
-import { createToast, getRandomFromArray, isMobile } from "./utils";
+import {
+  createToast,
+  getRandomFromArray,
+  isMobile,
+  parseInviteURL,
+} from "./utils";
 import AudioManager from "./AudioManager";
 
 import Stats from "stats.js";
@@ -13,8 +18,8 @@ import ClientVehicle from "./ClientVehicle";
 import CameraManager from "./CameraManager";
 import DebugState from "./state/DebugState";
 import ClientWeapon from "./ClientWeapon";
-import { randFloat } from "three/src/math/MathUtils";
 import { USER_SETTINGS_LOCAL_STORE } from "./constants";
+import { Socket } from "socket.io-client";
 
 let world: World | null = null;
 
@@ -39,7 +44,6 @@ const snapshotBuffer: Snapshot[] = [];
 let serverTimeOffsetMs: number = 0;
 
 const stats = new Stats();
-// document.body.appendChild(stats.dom);
 
 const clock = new THREE.Clock();
 
@@ -64,12 +68,13 @@ type NetworkPlayer = {
   viewQuaternion: { x: number; y: number; z: number; w: number };
   isDead: boolean;
   killCount: number;
+  lobbyId: string;
 };
 
 let ping = 0;
 
 // Scene
-const scene = new THREE.Scene();
+let scene = new THREE.Scene();
 scene.background = new THREE.Color(0x95f2f5);
 
 // Camera
@@ -80,37 +85,52 @@ AudioManager.instance.attachToCamera(camera);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
 
 // Input manager
 const inputManager = InputManager.instance;
 inputManager.setRenderer(renderer);
 
 // Pointer lock
-document.body.addEventListener("click", () => {
-  renderer.domElement.requestPointerLock();
-});
 
 // Mobile joystick control
 const mobileSens = 0.08;
 let joystickX = 0;
 let joystickY = 0;
-window.addEventListener("camera-controls", (e: any) => {
-  const { x, y } = e.detail;
-  joystickX = x;
-  joystickY = -y;
-});
 
 // Networking
-const socket = NetworkManager.instance.getSocket();
+let socket: Socket | null = null;
+
+function registerEventListeners() {
+  // pointer lock
+  document.body.addEventListener("click", () => {
+    renderer.domElement.requestPointerLock();
+  });
+
+  // mobile joystick camera
+  window.addEventListener("camera-controls", (e: any) => {
+    const { x, y } = e.detail;
+    joystickX = x;
+    joystickY = -y;
+  });
+
+  // canvas resize
+  window.addEventListener("resize", resizeRenderer);
+
+  // add renderer
+  document.body.appendChild(renderer.domElement);
+}
 
 function registerSocketEvents(world: World) {
+  if (!socket) return;
+
   setInterval(() => {
     const start = Date.now();
-    socket.emit("pingCheck", start);
+    socket?.emit("pingCheck", start);
   }, 3000);
 
   function syncTime() {
+    if (!socket) return;
+
     const clientSent = Date.now();
     socket.emit("syncTime", clientSent);
   }
@@ -123,6 +143,40 @@ function registerSocketEvents(world: World) {
   });
 
   for (let i = 0; i < 5; i++) setTimeout(syncTime, i * 200);
+
+  // minigames
+
+  type MinigameStartData = {
+    type: "race" | "deathmatch";
+    startTime: number;
+  };
+
+  type MinigameEndData = {
+    type: "race" | "deathmatch";
+    totalTime: number;
+  };
+
+  socket.on("minigame-start", (data: MinigameStartData) => {
+    const { type, startTime } = data;
+
+    if (type == "race") {
+      window.dispatchEvent(new CustomEvent("minigame-start", { detail: data }));
+    }
+  });
+
+  socket.on("minigame-end", (data: MinigameEndData) => {
+    const { type, totalTime } = data;
+
+    if (type == "race") {
+      window.dispatchEvent(new CustomEvent("minigame-end", { detail: data }));
+    }
+  });
+
+  socket.on("minigame-cancel", () => {
+    window.dispatchEvent(new CustomEvent("minigame-cancel"));
+  });
+
+  //
 
   socket.on("pongCheck", (startTime: number) => {
     ping = Date.now() - startTime;
@@ -145,6 +199,38 @@ function registerSocketEvents(world: World) {
     world.initWorldData(data);
   });
 
+  socket.on("switch-world", (data: any) => {
+    scene.clear();
+    world.restart();
+
+    const settings = getLocalUserSettings();
+    if (settings) socket?.emit("init-user-settings", settings);
+
+    const { players } = data;
+
+    if (players) {
+      for (const [id, value] of Object.entries(players)) {
+        const player = world.getPlayerById(id);
+
+        if (player) continue;
+
+        const newPlayer = new ClientPlayer(world, id, "0xffffff", scene);
+        world.addPlayer(newPlayer);
+      }
+    }
+
+    world.initWorldData(data);
+
+    const p = new ClientPlayer(
+      world,
+      socket!.id as string,
+      "0xffffff",
+      scene,
+      true
+    );
+    world.addPlayer(p);
+  });
+
   socket.on("init-chat", (data: any) => {
     ChatManager.instance.init(data && data.messages ? data.messages : []);
   });
@@ -159,6 +245,7 @@ function registerSocketEvents(world: World) {
   });
 
   socket.on("zoneCreated", (data: any) => {
+    console.log("ZONE CREATED", data);
     world.createZone(data);
   });
 
@@ -305,7 +392,7 @@ function registerSocketEvents(world: World) {
   socket.on("updateData", (data) => {
     if (!worldIsReady || !NetworkManager.instance.localId) return;
 
-    // fake ping
+    // fake ping`
 
     // handle local separately
     const serverState = data.players[
@@ -358,45 +445,9 @@ const ghostMesh = new THREE.Mesh(
 
 scene.add(ghostMesh);
 
-function getVelocityFromInput(
-  keys: any,
-  camQuat: THREE.Quaternion,
-  speedWalk = 4,
-  speedRun = 8
-): THREE.Vector3 {
-  const inputDir = new THREE.Vector3();
-
-  // WASD → input direction
-  if (keys.w) inputDir.z -= 1;
-  if (keys.s) inputDir.z += 1;
-  if (keys.a) inputDir.x -= 1;
-  if (keys.d) inputDir.x += 1;
-
-  // If no input, return zero vector
-  if (inputDir.lengthSq() === 0) return new THREE.Vector3(0, 0, 0);
-
-  // Normalize input so diagonal speed isn't faster
-  inputDir.normalize();
-
-  // Camera yaw only (ignore pitch)
-  const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
-  const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(0, 1, 0),
-    euler.y
-  );
-
-  // Convert to world direction
-  const worldDir = inputDir.applyQuaternion(yawQuat);
-
-  // Speed based on shift
-  const speed = keys.shift ? speedRun : speedWalk;
-
-  // Final velocity (horizontal only)
-  return worldDir.multiplyScalar(speed);
-}
-
 function reconcileLocalPlayer(serverState: NetworkPlayer) {
-  if (!NetworkManager.instance.localId) return;
+  if (!worldIsReady || !NetworkManager.instance.localId) return;
+
   const player = world?.getPlayerById(NetworkManager.instance.localId);
   if (!player) return;
 
@@ -488,6 +539,8 @@ const extrapolationState = new Map<
 const serverTickMs = 1000 / 30;
 
 function interpolatePlayers() {
+  if (!worldIsReady || !NetworkManager.instance.localId) return;
+
   const INTERP_DELAY = Math.max(100, serverTickMs * 2 + ping * 0.5);
   if (snapshotBuffer.length < 2) return;
 
@@ -614,6 +667,7 @@ function interpolatePlayers() {
         ),
         isDead: pNew.isDead,
         killCount: pNew.killCount,
+        lobbyId: pNew.lobbyId,
       });
     }
   }
@@ -1049,6 +1103,7 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
     weapon: player.rightHand.item,
     ammo: player.ammo,
     isDead: player.isDead,
+    lobbyDetails: world?.lobbyDetails,
   };
   window.dispatchEvent(new CustomEvent("player-update", { detail: eventData }));
   window.dispatchEvent(
@@ -1078,7 +1133,7 @@ function updateLocalCharacterPrediction(player: ClientPlayer, delta: number) {
       camPos: camera.position.clone(),
     };
     pendingInputs.push(input);
-    socket.emit("playerInput", input);
+    socket?.emit("playerInput", input);
 
     // Predict immediately for responsiveness
     playerObject.predictMovement(FIXED_DT, actions, input.camQuat);
@@ -1181,7 +1236,7 @@ function updateLocalVehiclePrediction(vehicle: ClientVehicle, delta: number) {
       camPos: camera.position.clone(),
     };
     pendingVehicleInputs.push(input);
-    socket.emit("vehicleInput", input);
+    socket!.emit("vehicleInput", input);
 
     // Predict immediately for responsiveness
     vehicle.predictMovementCustom(actions);
@@ -1336,7 +1391,7 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
     }
 
     if (respawnPressed) {
-      socket.emit("player-respawn");
+      socket!.emit("player-respawn");
     }
 
     prevRespawn = input.reload;
@@ -1447,15 +1502,94 @@ function getLocalUserSettings(): LocalUserSettings | null {
   return JSON.parse(settings);
 }
 
+function resizeRenderer() {
+  // update renderer canvas size
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // update camera aspect ratio
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
+
+async function startConnection() {
+  socket = NetworkManager.instance.getSocket();
+
+  if (!socket) return;
+  socket.on("connect", () => {
+    console.log("Connected with server with id:", socket?.id);
+    init();
+  });
+
+  socket.on("connect_error", (err: any) => {
+    console.error("Socket connection error:", err);
+    window.dispatchEvent(
+      new CustomEvent("loading-status", {
+        detail: {
+          error: {
+            title: "Connection error",
+            info: "The server appears to be unreachable, please try again later",
+          },
+        },
+      })
+    );
+  });
+}
+
+function resetWorld() {
+  console.log("Resetting world...");
+
+  // Stop rendering & updates
+  worldIsReady = false;
+
+  // Cleanup world scene
+  if (world) {
+    try {
+      world.cleanup(); // custom cleanup for meshes, physics, npcs, vehicles
+    } catch (e) {
+      console.warn("World cleanup error:", e);
+    }
+    world = null;
+  }
+
+  // Clear scene completely
+  if (scene) {
+    scene.clear();
+  }
+
+  // Reset globals
+  snapshotBuffer.length = 0;
+  inputSeq = 0;
+  vehicleInputSeq = 0;
+  pendingInputs = [];
+  pendingVehicleInputs = [];
+  accumulator = 0;
+
+  // Reset camera position and rotation
+  camera.position.set(0, 0, 0);
+  camera.rotation.set(0, 0, 0);
+
+  // // Reset UI
+  // window.dispatchEvent(
+  //   new CustomEvent("loading-status", { detail: { ready: false } })
+  // );
+
+  console.log("World reset complete. Socket and network kept alive.");
+}
+
 // ---------------- Init ----------------
 async function init() {
+  if (!socket || socket == null) {
+    console.log("No socket");
+    return;
+  }
+
   const assetsManager = AssetsManager.instance;
   await assetsManager.loadAll();
 
-  world = new World(scene);
+  world = new World(scene, "some_id");
   await world.init();
 
-  if (!socket.id) {
+  if (!socket || !socket.id) {
     console.log("no socket id i.e. no connection");
     return;
   }
@@ -1470,46 +1604,30 @@ async function init() {
   );
   world.addPlayer(player);
 
+  registerEventListeners();
+
   registerSocketEvents(world);
   animate(world);
 
   window.dispatchEvent(
     new CustomEvent("loading-status", { detail: { ready: true } })
   );
+
+  resizeRenderer();
+
   setTimeout(() => {
     worldIsReady = true;
-    socket.emit("readyForWorld");
+
+    const lobbyId = parseInviteURL();
+
+    socket?.emit("readyForWorld", { inviteId: lobbyId });
 
     const settings = getLocalUserSettings();
-    if (settings) socket.emit("init-user-settings", settings);
+    if (settings) socket?.emit("init-user-settings", settings);
   }, 2000);
 }
 
-function resizeRenderer() {
-  // update renderer canvas size
-  renderer.setSize(window.innerWidth, window.innerHeight);
-
-  // update camera aspect ratio
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-}
-window.addEventListener("resize", resizeRenderer);
-
-socket.on("connect", () => {
-  console.log("Connected with server with id:", socket.id);
-  init();
-});
-
-socket.on("connect_error", (err: any) => {
-  console.error("Socket connection error:", err);
-  window.dispatchEvent(
-    new CustomEvent("loading-status", {
-      detail: {
-        error: {
-          title: "Connection error",
-          info: "The server appears to be unreachable, please try again later",
-        },
-      },
-    })
-  );
+window.addEventListener("join-world", () => {
+  console.log("joining world...");
+  startConnection();
 });
