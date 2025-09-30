@@ -232,8 +232,28 @@ export default function Chat() {
       ]);
     };
 
+    function formatDuration(ms: number): string {
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m ${seconds}s`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      } else {
+        return `${seconds}s`;
+      }
+    }
+
     const handleServerInfoCommand = (e: any) => {
-      addSystemMessage(`${JSON.stringify(e)}`);
+      const info =
+        `Uptime: ${formatDuration(e.uptime)}\n` +
+        `Hub players: ${e.hub.players ?? 0}\n` +
+        `Minigames: ${e.minigames}`;
+
+      addSystemMessage(info);
     };
 
     socket.on("server-info", handleServerInfoCommand);
