@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import NetworkManager from "../NetworkManager";
 
 type Leaderboard = {
@@ -106,6 +106,18 @@ export default function MinigameHUD() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [hasFinished, handleRestart, handleBackToHub]);
 
+  // Auto-scroll to local player in leaderboard
+  const localPlayerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (hasFinished && localPlayerRef.current) {
+      localPlayerRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [hasFinished, leaderboard]);
+
   return (
     <>
       {hasStarted && (
@@ -148,6 +160,7 @@ export default function MinigameHUD() {
                       return (
                         <div
                           key={index}
+                          ref={isLocalPlayer ? localPlayerRef : null}
                           className={`flex justify-between px-3 py-1 text-left gap-4 transition-colors ${
                             isLocalPlayer
                               ? "bg-green-700/40"
