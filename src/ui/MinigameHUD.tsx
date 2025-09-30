@@ -4,8 +4,21 @@ import NetworkManager from "../NetworkManager";
 type Leaderboard = {
   id: string;
   nickname: string | null;
-  time: number;
+  time: number; // in seconds
 };
+
+function formatDurationCustom(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60; // includes decimals
+
+  let parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  parts.push(`${secs.toFixed(3)}s`);
+
+  return parts.join(" ");
+}
 
 export default function MinigameHUD() {
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -127,7 +140,7 @@ export default function MinigameHUD() {
               <div className="text-lg font-semibold">
                 Time elapsed:{" "}
                 <span className="text-yellow-400">
-                  {elapsedTime.toFixed(2)}s
+                  {formatDurationCustom(elapsedTime)}
                 </span>
               </div>
             )}
@@ -137,7 +150,7 @@ export default function MinigameHUD() {
                 <div className="text-lg font-semibold mb-2">
                   Finished in{" "}
                   <span className="text-green-400 font-bold">
-                    {serverTotalTime}s
+                    {formatDurationCustom(serverTotalTime)}
                   </span>
                 </div>
 
@@ -177,8 +190,8 @@ export default function MinigameHUD() {
                           >
                             {item.id}
                           </span>
-                          <span className="font-mono w-16 text-right tabular-nums">
-                            {item.time.toFixed(3)}s
+                          <span className="font-mono w-28 text-right tabular-nums">
+                            {formatDurationCustom(item.time)}
                           </span>
                         </div>
                       );

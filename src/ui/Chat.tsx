@@ -7,6 +7,7 @@ import ChatManager, { ChatMessage } from "../ChatManager";
 import DebugState from "../state/DebugState";
 import { LocalUserSettings } from "../main";
 import { USER_SETTINGS_LOCAL_STORE } from "../constants";
+import { formatDuration } from "../utils";
 
 const CHAR_LIMIT = 500;
 
@@ -231,21 +232,6 @@ export default function Chat() {
         { id: e.id as string, text: e.text, nickname: e.nickname },
       ]);
     };
-
-    function formatDuration(ms: number): string {
-      const totalSeconds = Math.floor(ms / 1000);
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-
-      if (hours > 0) {
-        return `${hours}h ${minutes}m ${seconds}s`;
-      } else if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-      } else {
-        return `${seconds}s`;
-      }
-    }
 
     const handleServerInfoCommand = (e: any) => {
       const info =
