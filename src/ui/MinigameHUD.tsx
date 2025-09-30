@@ -109,7 +109,7 @@ export default function MinigameHUD() {
   return (
     <>
       {hasStarted && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[1000]">
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[1000] user-select-none">
           <div className="bg-black/70 text-white px-5 py-3 rounded-lg shadow-lg text-center min-w-[220px] max-w-[420px]">
             {!hasFinished && (
               <div className="text-lg font-semibold">

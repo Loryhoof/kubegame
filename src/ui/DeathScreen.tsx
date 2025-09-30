@@ -12,7 +12,7 @@ export default function DeathScreen({ state }: { state: DeathState }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm text-white animate-fadeIn">
+    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm text-white animate-fadeIn user-select-none">
       {/* Big dramatic title */}
       <h1 className="text-6xl font-extrabold tracking-wider text-red-500 drop-shadow-2xl animate-pulse-slow">
         YOU DIED

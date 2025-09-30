@@ -23,7 +23,7 @@ export default function Crosshair() {
   return (
     <>
       {showCrosshair && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none user-select-none">
           <div className="relative w-6 h-6">
             {" "}
             {/* a bit bigger container */}

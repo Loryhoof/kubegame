@@ -280,7 +280,7 @@ export default function Chat() {
 
   return (
     <>
-      <div className="fixed z-[1000] bottom-1/4 left-4 w-60 transition-all duration-200 flex flex-col pointer-events-none h-64">
+      <div className="fixed z-[1000] bottom-1/4 left-4 w-60 transition-all duration-200 flex flex-col pointer-events-none h-64 user-select-none">
         {/* Chat field */}
         <p className="text-xs font-light ml-1 mb-2">
           Press{" "}

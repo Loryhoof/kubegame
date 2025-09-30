@@ -78,7 +78,7 @@ export default function Joystick({
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      className={`fixed bottom-8 ${
+      className={`fixed bottom-8  user-select-none ${
         side === "left" ? "left-20" : "right-20"
       } flex items-center justify-center z-[10000]`}
       style={{

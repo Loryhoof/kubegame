@@ -62,7 +62,7 @@ export default function MobileControls() {
       {isActive && (
         <>
           {/* Left side */}
-          <div className="fixed z-[10000] bottom-1/3 left-4">
+          <div className="fixed z-[10000] bottom-1/3 left-4 user-select-none">
             <div className="flex flex-col space-y-2">
               {createButton("R", "reload")}
 

@@ -21,7 +21,7 @@ export type DeathState = {
 
 const VersionSection = () => {
   return (
-    <p className="fixed bottom-5 right-5 text-xs z-[9999] text-white">
+    <p className="fixed bottom-5 right-5 text-xs z-[9999] text-white user-select-none">
       v{DebugState.instance.buildVersion}
     </p>
   );

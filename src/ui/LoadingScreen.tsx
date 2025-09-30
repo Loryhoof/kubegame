@@ -101,7 +101,7 @@ const LoadingScreen = () => {
     <>
       {active && (
         <div
-          className={`fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900 select-none transition-opacity duration-500 ${
+          className={`fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900 select-none transition-opacity duration-500 user-select-none ${
             fadeOut ? "opacity-0" : "opacity-100"
           }`}
         >

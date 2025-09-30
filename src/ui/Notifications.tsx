@@ -60,7 +60,7 @@ export default function Notifications() {
   };
 
   return (
-    <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center space-y-1 z-[1000]">
+    <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center space-y-1 z-[1000] user-select-none">
       {notifications.map((n) => (
         <p
           key={n.id}

@@ -8,6 +8,7 @@ import ClientNPC from "./ClientNPC";
 import ClientPhysics from "./ClientPhysics";
 import ClientPlayer from "./ClientPlayer";
 import { LobbyDetails } from "./types/Lobby";
+import ClientSky from "./ClientSky";
 
 const base = import.meta.env.BASE_URL;
 
@@ -35,6 +36,8 @@ export default class World {
   public vehicles: ClientVehicle[] = [];
   public npcs: any[] = [];
   public players: Map<string, ClientPlayer> = new Map();
+
+  private sky: ClientSky | null = null;
 
   public lobbyDetails: LobbyDetails | null = null;
 
@@ -88,10 +91,20 @@ export default class World {
   async init() {
     await ClientPhysics.instance.init();
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
+    this.sky = new ClientSky();
+    this.scene.add(this.sky.mesh);
+
+    // Lights to match
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
+    light.position.set(0, 1, 0); // directly above
     this.scene.add(light);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+    // light.position
+    //   .copy(this.sky.material.uniforms.sunDirection.value)
+    //   .multiplyScalar(1000);
+    light.intensity = 1.2;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
 
     const texture = loader.load(`${base}prototype.jpg`);
@@ -145,10 +158,10 @@ export default class World {
     this.npcs = [];
     this.players = new Map();
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
     this.scene.add(light);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
 
     const texture = loader.load(`${base}prototype.jpg`);
@@ -182,6 +195,9 @@ export default class World {
       new THREE.Vector3(0, -0.5, 0),
       new THREE.Vector3(500, 0.1, 500)
     );
+
+    this.sky = new ClientSky();
+    this.scene.add(this.sky.mesh);
   }
 
   getScene() {
@@ -939,5 +955,7 @@ export default class World {
     // this.entities.forEach((entity: Entity) => {
     //   entity.update();
     // });
+
+    // this.sky?.update(delta);
   }
 }

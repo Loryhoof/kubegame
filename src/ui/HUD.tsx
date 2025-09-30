@@ -110,7 +110,7 @@ export default function HUD() {
   return (
     <>
       {/* Top Left: Players & Ping */}
-      <div className="fixed top-3 left-3 z-[1000] min-w-[150px] bg-black/50 rounded-md p-2 text-white text-xs leading-[1.6] space-y-1">
+      <div className="fixed top-3 left-3 z-[1000] min-w-[150px] bg-black/50 rounded-md p-2 text-white text-xs leading-[1.6] space-y-1 user-select-none">
         <div>{formatLobbyDetails()}</div>
 
         <div className="flex justify-between text-gray-200">
@@ -129,7 +129,7 @@ export default function HUD() {
       )}
 
       {/* Top Right: Coins */}
-      <div className="fixed top-3 right-3 z-[1000] bg-black/50 rounded-md px-3 py-1 text-yellow-400 font-bold text-sm flex items-center gap-1 shadow-lg border border-yellow-500/30">
+      <div className="fixed top-3 right-3 z-[1000] bg-black/50 rounded-md px-3 py-1 text-yellow-400 font-bold text-sm flex items-center gap-1 shadow-lg border border-yellow-500/30 user-select-none">
         {/* <img
           src="/icons/coin.png"
           alt="coin"
@@ -143,7 +143,7 @@ export default function HUD() {
 
       {/* Weapon Info */}
       {weaponData && (
-        <div className="absolute left-1/2 bottom-20 -translate-x-1/2 z-[1000] text-center w-28">
+        <div className="absolute left-1/2 bottom-20 -translate-x-1/2 z-[1000] text-center w-28 user-select-none">
           <div className="relative w-full h-9 bg-black/40 rounded-sm flex items-center justify-center overflow-hidden border border-white/10">
             <span className="text-white text-lg font-bold z-10">
               {weaponData.ammo}/{ammo}
@@ -163,7 +163,7 @@ export default function HUD() {
       )}
 
       {/* Health Bar */}
-      <div className="absolute left-1/2 bottom-10 -translate-x-1/2 z-[1000] w-44 h-3 bg-black/60 border border-white/20 rounded-sm overflow-hidden shadow-md">
+      <div className="absolute left-1/2 bottom-10 -translate-x-1/2 z-[1000] w-44 h-3 bg-black/60 border border-white/20 rounded-sm overflow-hidden shadow-md user-select-none">
         <div
           className={`h-full transition-all duration-200 ${
             health > 50

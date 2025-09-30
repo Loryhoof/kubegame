@@ -65,7 +65,7 @@ const StartingScreen = () => {
 
   return (
     <>
-      <div className="text-white flex flex-col w-screen h-screen items-center justify-center bg-gray-900">
+      <div className="text-white flex flex-col w-screen h-screen items-center justify-center bg-gray-900 user-select-none">
         {/* Header */}
         {/* <Header /> */}
 

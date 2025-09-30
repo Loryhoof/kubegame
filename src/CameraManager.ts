@@ -10,7 +10,7 @@ export default class CameraManager {
       75,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      10000
     );
 
     this.camera.position.set(0, 2, 5);
