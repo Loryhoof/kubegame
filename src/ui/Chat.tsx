@@ -214,6 +214,7 @@ export default function Chat() {
   useEffect(() => {
     const initChatMessages = (data: any) => {
       setMessages(data.detail.messages);
+      addSystemMessage("/race - Start race minigame");
     };
 
     window.addEventListener("init-chat-messages", initChatMessages as any);
