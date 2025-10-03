@@ -362,6 +362,44 @@ function registerSocketEvents(world: World) {
     }
   );
 
+  socket.on(
+    "shot-fired",
+    (data: { position: { x: number; y: number; z: number } }) => {
+      const { x, y, z } = data.position;
+
+      const buffer = AudioManager.instance.getBufferByName("pistol_shot_1");
+      if (!buffer) return;
+
+      // Create positional audio
+      const audio = new THREE.PositionalAudio(
+        AudioManager.instance.getListener()
+      );
+      audio.setBuffer(buffer);
+
+      // // Config spatial sound
+      // audio.setRefDistance(8); // full volume within 8 units
+      // audio.setMaxDistance(50); // fades out by 50 units
+      // audio.setDistanceModel("linear");
+      // audio.setVolume(0.8);
+
+      // Attach audio to a temp object at the shot location
+      const tempObj = new THREE.Object3D();
+      tempObj.position.set(x, y, z);
+      tempObj.add(audio);
+      scene.add(tempObj);
+
+      // Play
+      audio.play();
+
+      // Cleanup when sound finishes
+      audio.onEnded = () => {
+        tempObj.remove(audio);
+        scene.remove(tempObj);
+        audio.disconnect();
+      };
+    }
+  );
+
   socket.on("player-death", (playerId: string) => {
     const player = world.getPlayerById(playerId);
 
@@ -880,6 +918,15 @@ function interpolateNPCs() {
         keys: pNew.keys,
         isSitting: pNew.isSitting,
         controlledObject: pNew.controlledObject,
+
+        leftHand: pNew.leftHand,
+        rightHand: pNew.rightHand,
+        viewQuaternion: new THREE.Quaternion(
+          pNew.viewQuaternion.x,
+          pNew.viewQuaternion.y,
+          pNew.viewQuaternion.z,
+          pNew.viewQuaternion.w
+        ),
       });
     }
   }

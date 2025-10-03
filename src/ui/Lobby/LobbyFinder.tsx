@@ -82,12 +82,19 @@ export default function LobbyFinder() {
             🏁 Race
           </button>
 
-          <div className="w-full bg-gray-800 text-left py-4 px-5 rounded-lg font-semibold text-lg opacity-50 relative">
+          {/* <div className="w-full bg-gray-800 text-left py-4 px-5 rounded-lg font-semibold text-lg opacity-50 relative">
             ⚔️ Deathmatch
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs bg-yellow-500 text-black px-2 py-0.5 rounded">
               Coming Soon
             </span>
-          </div>
+          </div> */}
+
+          <button
+            onClick={() => handleSelect("deathmatch")}
+            className="w-full bg-gray-800 hover:bg-indigo-600 transition text-left py-4 px-5 rounded-lg font-semibold text-lg"
+          >
+            ⚔️ Deathmatch
+          </button>
         </div>
 
         {/* back to hub */}

@@ -6,6 +6,8 @@ import InputManager from "./InputManager";
 import FloatingText from "./FloatingText";
 import ClientPhysics, { PhysicsObject } from "./ClientPhysics";
 import { randFloat } from "three/src/math/MathUtils";
+import { Hand, handOffset } from "./ClientPlayer";
+import ClientWeapon from "./ClientWeapon";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -16,6 +18,27 @@ type StateData = {
   velocity: THREE.Vector3;
   color: string;
   health: string;
+  leftHand: {
+    side: "left" | "right";
+    item?: {
+      name: string;
+      ammo: number;
+      capacity: number;
+      isReloading: boolean;
+    };
+  };
+  rightHand: {
+    side: "left" | "right";
+    item?: {
+      name: string;
+      ammo: number;
+      capacity: number;
+      isReloading: boolean;
+    };
+  };
+  viewQuaternion: THREE.Quaternion;
+  keys: any;
+
   //health: number;
   //coins: number;
   // keys: any;
@@ -64,6 +87,11 @@ class ClientNPC {
   private ragdollReady: boolean = false;
 
   private passDone: boolean = false;
+
+  public leftHand: Hand;
+  public rightHand: Hand;
+
+  private viewQuaternion: THREE.Quaternion | null = null; // add this near top (like ClientPlayer)
 
   constructor(
     networkId: string,
@@ -139,6 +167,10 @@ class ClientNPC {
         "Running_Lower",
         this.mixer.clipAction(getAnimationByName(modelAnims, "Running_Lower")),
       ],
+      [
+        "Aim_Upper",
+        this.mixer.clipAction(getAnimationByName(modelAnims, "Aim_Upper")),
+      ],
     ]);
 
     this.mixer.addEventListener("finished", (e) => {
@@ -160,10 +192,15 @@ class ClientNPC {
     // bones stuff
     this.model.traverse((obj: any) => {
       if (obj instanceof THREE.Bone) {
-        console.log(obj.name);
         this.bones.set(obj.name, obj);
       }
     });
+
+    this.leftHand = { side: "left", bone: this.bones.get("Bone006") } as Hand;
+    this.rightHand = {
+      side: "right",
+      bone: this.bones.get("Bone003"),
+    } as Hand;
 
     // // Play default animations
     // this.animations.get("Idle")!.play();
@@ -335,7 +372,39 @@ class ClientNPC {
       ClientPhysics.instance.remove(pair.physics);
     });
 
+    if (this.leftHand.item) this.scene.remove(this.leftHand.item.object);
+    if (this.rightHand.item) this.scene.remove(this.rightHand.item.object);
+
     this.ragdollPairs = [];
+  }
+
+  handleHandItem(
+    side: "left" | "right",
+    item: { name: string; ammo: number; capacity: number; isReloading: boolean }
+  ) {
+    const hand = side == "left" ? this.leftHand : (this.rightHand as Hand);
+
+    if (item.name == "pistol") {
+      if (hand.item && hand.item.name == item.name) {
+        // update existing state
+
+        const weapon = hand.item as ClientWeapon;
+
+        weapon.ammo = item.ammo;
+        weapon.capacity = item.capacity;
+        weapon.isReloading = item.isReloading;
+
+        if (weapon.isReloading) weapon.reload();
+      } else {
+        // create new
+        const mesh = AssetsManager.instance.models.get("pistol")!.scene.clone();
+        this.scene.add(mesh);
+
+        const weapon = new ClientWeapon("pistol", mesh);
+
+        hand.item = weapon;
+      }
+    }
   }
 
   setState(state: StateData) {
@@ -346,9 +415,12 @@ class ClientNPC {
       health,
       //   coins,
       velocity,
-      //   keys,
+      keys,
       //   isSitting,
       //   controlledObject,
+      leftHand,
+      rightHand,
+      viewQuaternion,
     } = state;
 
     // this.coins = coins;
@@ -358,7 +430,10 @@ class ClientNPC {
     // this.health = health;
     this.dummy.position.copy(position);
 
-    // this.keys = keys;
+    this.viewQuaternion = viewQuaternion;
+
+    this.keys = keys;
+
     // this.isSitting = isSitting;
 
     // this.controlledObject = controlledObject;
@@ -373,6 +448,22 @@ class ClientNPC {
       ),
       0.15
     );
+
+    if (leftHand) {
+      const { side, item } = leftHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
+
+    if (rightHand) {
+      const { side, item } = rightHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
 
     // Initial material setup
     if (!this.hasInit) {
@@ -442,16 +533,20 @@ class ClientNPC {
   }
 
   private updateAnimationState(delta: number) {
-    const velocityLength = this.velocity.length();
-
     const input = this.isLocalPlayer
       ? InputManager.instance.getState()
       : this.keys;
     const isStrafing = input.aim;
-    const speedFactor = input.sprint ? 1.5 : 1;
+    let speedFactor = input.sprint ? 1.5 : 1;
+    if (isStrafing) speedFactor = 1;
 
-    const moving = this.velocity.length() > 0.01;
-    const isRunning = velocityLength > 4 && moving;
+    const horizontalVelocity = new THREE.Vector3(
+      this.velocity.x,
+      0,
+      this.velocity.z
+    );
+    const moving = horizontalVelocity.length() > 0.01;
+    const isRunning = input.sprint && moving && !isStrafing;
 
     const idle = this.animations.get("Idle");
     const walkLower = this.animations.get("Walk_Lower");
@@ -462,6 +557,65 @@ class ClientNPC {
     const run = this.animations.get("Running");
     const runningUpper = this.animations.get("Running_Upper");
     const runningLower = this.animations.get("Running_Lower");
+    const aimUpper = this.animations.get("Aim_Upper");
+
+    // --- AIM LOGIC ---
+    const aiming = input.aim;
+    if (aiming && this.rightHand.item) {
+      this.interpolateWeight(aimUpper, 1, delta);
+      this.interpolateWeight(idle, 0, delta);
+      this.interpolateWeight(walkUpper, 0, delta);
+      this.interpolateWeight(walkLower, 0, delta);
+      this.interpolateWeight(strafeLeft, 0, delta);
+      this.interpolateWeight(strafeRight, 0, delta);
+      this.interpolateWeight(run, 0, delta);
+      this.interpolateWeight(runningUpper, 0, delta);
+      this.interpolateWeight(runningLower, 0, delta);
+
+      if (moving) {
+        if (input.moveLeft) {
+          this.interpolateWeight(strafeLeft, 1, delta * speedFactor);
+          this.interpolateWeight(strafeRight, 0, delta);
+        } else if (input.moveRight) {
+          this.interpolateWeight(strafeRight, 1, delta * speedFactor);
+          this.interpolateWeight(strafeLeft, 0, delta);
+        } else {
+          this.interpolateWeight(walkLower, 1, delta * speedFactor);
+          this.interpolateWeight(strafeLeft, 0, delta);
+          this.interpolateWeight(strafeRight, 0, delta);
+        }
+      }
+
+      const rootBone = this.bones.get("Bone") as THREE.Bone;
+      if (rootBone) {
+        // pick source quaternion: local cam or remote view
+        const sourceQuat = this.viewQuaternion ?? new THREE.Quaternion();
+
+        const forwardWorld = new THREE.Vector3(0, 0, -1).applyQuaternion(
+          sourceQuat
+        );
+
+        // convert to local player space
+        const forwardLocal = forwardWorld.clone();
+        this.dummy.worldToLocal(forwardLocal.add(this.dummy.position));
+
+        const pitch = Math.atan2(
+          forwardLocal.y,
+          Math.sqrt(
+            forwardLocal.x * forwardLocal.x + forwardLocal.z * forwardLocal.z
+          )
+        );
+        let yaw = -Math.atan2(forwardLocal.x, -forwardLocal.z);
+
+        const maxTwist = Math.PI / 2.5;
+        yaw = Math.max(-maxTwist, Math.min(maxTwist, yaw));
+
+        rootBone.rotation.z = pitch;
+        rootBone.rotation.y = yaw;
+      }
+
+      return;
+    }
 
     if (this.isSitting) {
       this.interpolateWeight(sit, 1, delta);
@@ -470,10 +624,9 @@ class ClientNPC {
       this.interpolateWeight(walkLower, 0, delta);
       this.interpolateWeight(strafeLeft, 0, delta);
       this.interpolateWeight(strafeRight, 0, delta);
-      //this.interpolateWeight(run, 0, delta);
       this.interpolateWeight(runningLower, 0, delta);
       this.interpolateWeight(runningUpper, 0, delta);
-
+      this.interpolateWeight(aimUpper, 0, delta);
       return;
     } else {
       this.interpolateWeight(sit, 0, delta);
@@ -483,6 +636,7 @@ class ClientNPC {
       this.interpolateWeight(idle, 0, delta);
       this.interpolateWeight(walkUpper, 0, delta);
       this.interpolateWeight(runningUpper, 0, delta);
+      this.interpolateWeight(aimUpper, 0, delta);
     }
 
     if (isRunning) {
@@ -496,6 +650,7 @@ class ClientNPC {
       this.interpolateWeight(strafeLeft, 0, delta);
       this.interpolateWeight(strafeRight, 0, delta);
       this.interpolateWeight(idle, 0, delta);
+      this.interpolateWeight(aimUpper, 0, delta);
     } else if (moving) {
       this.interpolateWeight(runningUpper, 0, delta);
       this.interpolateWeight(runningLower, 0, delta);
@@ -520,6 +675,7 @@ class ClientNPC {
         this.interpolateWeight(walkLower, 1, delta * speedFactor);
         this.interpolateWeight(strafeLeft, 0, delta);
         this.interpolateWeight(strafeRight, 0, delta);
+        this.interpolateWeight(aimUpper, 0, delta);
       }
 
       this.interpolateWeight(idle, 0, delta);
@@ -532,11 +688,50 @@ class ClientNPC {
       this.interpolateWeight(run, 0, delta);
       this.interpolateWeight(runningUpper, 0, delta);
       this.interpolateWeight(runningLower, 0, delta);
+      this.interpolateWeight(aimUpper, 0, delta);
     }
   }
 
   updateAudio() {
     // Implement audio triggers here if needed
+
+    console.log(this.keys, "keysss");
+
+    if (this.keys["shoot"]) {
+      const wp = this.rightHand.item as ClientWeapon;
+      wp.use();
+    }
+  }
+
+  updateHands() {
+    if (!this.leftHand?.bone || !this.rightHand?.bone) return;
+    if (!this.leftHand.item && !this.rightHand.item) return;
+
+    const applyHandTransform = (hand: any) => {
+      if (!hand.item) return;
+
+      const worldPos = new THREE.Vector3();
+      const worldQuat = new THREE.Quaternion();
+
+      // Get bone world transform
+      hand.bone.getWorldPosition(worldPos);
+      hand.bone.getWorldQuaternion(worldQuat);
+
+      // Position = bone position + offset
+      hand.item.object.position.copy(
+        worldPos.add(handOffset.clone().applyQuaternion(worldQuat))
+      );
+
+      // Orientation = bone orientation * extra rotation
+      const extraRot = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, -1),
+        Math.PI / 2
+      );
+      hand.item.object.quaternion.copy(worldQuat).multiply(extraRot);
+    };
+
+    applyHandTransform(this.leftHand);
+    applyHandTransform(this.rightHand);
   }
 
   update(delta: number) {
@@ -566,6 +761,8 @@ class ClientNPC {
 
     if (!this.hasDied) {
       this.updateAnimationState(delta);
+      this.updateHands();
+
       this.updateAudio();
       this.mixer.update(delta);
     }

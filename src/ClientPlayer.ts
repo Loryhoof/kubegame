@@ -17,7 +17,7 @@ import ClientVehicle from "./ClientVehicle";
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
 
-const handOffset = new THREE.Vector3(0, 0.2, 0);
+export const handOffset = new THREE.Vector3(0, 0.2, 0);
 
 type HoldingItem = {
   object: THREE.Object3D;
@@ -28,7 +28,7 @@ type RagdollPair = {
   physics: PhysicsObject;
 };
 
-type Hand = {
+export type Hand = {
   side: "left" | "right";
   bone: THREE.Bone;
   item?: IHoldable;
@@ -361,6 +361,7 @@ class ClientPlayer {
 
   remove() {
     this.cleanup();
+
     this.scene.remove(this.dummy);
   }
 
@@ -594,6 +595,10 @@ class ClientPlayer {
       this.scene.remove(pair.mesh);
       ClientPhysics.instance.remove(pair.physics);
     });
+
+    // commented out for now cuz respawn dont actually removes the char from the scene
+    // if (this.leftHand.item) this.scene.remove(this.leftHand.item.object);
+    // if (this.rightHand.item) this.scene.remove(this.rightHand.item.object);
 
     this.ragdollPairs = [];
     this.ragdollReady = false;
