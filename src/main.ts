@@ -103,7 +103,8 @@ let socket: Socket | null = null;
 function registerEventListeners() {
   // pointer lock
   document.body.addEventListener("click", () => {
-    renderer.domElement.requestPointerLock();
+    if (!InputManager.instance.isIgnoreInput())
+      renderer.domElement.requestPointerLock();
   });
 
   // mobile joystick camera

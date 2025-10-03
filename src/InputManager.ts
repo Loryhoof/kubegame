@@ -266,7 +266,31 @@ export default class InputManager {
     this.renderer = r;
   }
 
+  public getRenderer() {
+    return this.renderer;
+  }
+
+  public isIgnoreInput(): boolean {
+    return this.ignoreKeys;
+  }
+
   public setIgnoreKeys(bool: boolean) {
+    if (bool) {
+      // reset all keys & mouse
+      for (const k in this.keys) {
+        this.keys[k] = false;
+      }
+      for (const b in this.mouse) {
+        this.mouse[+b] = false;
+      }
+
+      // reset all actions
+      for (const action in this.actionState) {
+        this.actionState[action as Action] = false;
+        this.prevActionState[action as Action] = false;
+      }
+    }
+
     this.ignoreKeys = bool;
   }
 

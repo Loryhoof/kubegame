@@ -14,6 +14,7 @@ import DeathScreen from "./DeathScreen";
 import StartingScreen from "./StartingScreen";
 import DebugState from "../state/DebugState";
 import MinigameHUD from "./MinigameHUD";
+import LobbyFinder from "./Lobby/LobbyFinder";
 
 export type DeathState = {
   kills: number;
@@ -92,6 +93,7 @@ const Main = () => {
               {!isMobile() && <Chat />}
               <Crosshair />
               <MinigameHUD />
+              <LobbyFinder />
             </>
           )}
         </>

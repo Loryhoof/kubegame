@@ -22,6 +22,7 @@ export default function InfoBar() {
       <div className="fixed z-[1000] p-4 flex flex-col bottom-0 left-0 select-none user-select-none">
         {!isMobile() && (
           <>
+            <KeyBackground label="M" info="Minigames" />
             <KeyBackground label="E" info="Use" />
             <KeyBackground label="K" info="Spawn Car" />
           </>
