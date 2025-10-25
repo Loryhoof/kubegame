@@ -85,7 +85,7 @@ AudioManager.instance.attachToCamera(camera);
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(1.5);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 // Input manager
