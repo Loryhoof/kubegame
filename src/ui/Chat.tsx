@@ -197,6 +197,7 @@ export default function Chat() {
     const handleServerInfoCommand = (e: any) => {
       const info =
         `Uptime: ${formatDuration(e.uptime)}\n` +
+        `Total clients: ${e.totalClients ?? 0}\n` +
         `Hub players: ${e.hub.players ?? 0}\n` +
         `Minigames: ${e.minigames}`;
       addSystemMessage(info);
