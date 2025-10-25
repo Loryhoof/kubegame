@@ -21,9 +21,10 @@ const glbModels = [
   { key: "car", path: `${base}car.glb` },
   { key: "ramp", path: `${base}ramp.glb` },
   { key: "pistol", path: `${base}pistol.glb` },
+  { key: "arena", path: `${base}arena.glb` },
 ];
 
-const colliderNames = ["ramp"];
+const colliderNames = ["ramp", "arena"];
 const COLLIDERS_PATH = `${base}colliders`;
 
 export class AssetsManager {
@@ -53,10 +54,28 @@ export class AssetsManager {
     await Promise.all(
       colliderNames.map(async (col) => {
         const data = await this.loadCollider(`${COLLIDERS_PATH}/${col}.json`);
+        const entries = Array.isArray(data) ? data : [data];
+
+        let mergedVertices: number[] = [];
+        let mergedIndices: number[] = [];
+        let vertexOffset = 0;
+
+        for (const entry of entries) {
+          const v = Object.values(entry.vertices) as number[];
+          const i = Object.values(entry.indices) as number[];
+
+          mergedVertices.push(...v);
+          const offset = vertexOffset / 3;
+          mergedIndices.push(...i.map((idx) => idx + offset));
+
+          vertexOffset += v.length;
+        }
+
         const object = {
-          vertices: new Float32Array(Object.values(data.vertices)),
-          indices: new Uint16Array(Object.values(data.indices)),
+          vertices: new Float32Array(mergedVertices),
+          indices: new Uint16Array(mergedIndices),
         };
+
         this.colliders.set(col, object);
       })
     );
@@ -132,6 +151,15 @@ export class AssetsManager {
     }
 
     return { scene: clone(this.models.get("ramp")!.scene) };
+  }
+
+  getModelClone(key: string): { scene: THREE.Object3D } | undefined {
+    if (!this.models.get(key)) {
+      console.log(`No ${key} model`, this.models.get(key));
+      return undefined;
+    }
+
+    return { scene: clone(this.models.get(key)!.scene) };
   }
 
   getCarClone(): { scene: THREE.Object3D } | undefined {

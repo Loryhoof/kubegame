@@ -192,6 +192,7 @@ export default class ClientPhysics {
         y: rotation.y,
         z: rotation.z,
       });
+
     const rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
 
     const colDesc = RAPIER.ColliderDesc.trimesh(vertices, indices);

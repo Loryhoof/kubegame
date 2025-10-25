@@ -9,6 +9,7 @@ import ClientPhysics from "./ClientPhysics";
 import ClientPlayer from "./ClientPlayer";
 import { LobbyDetails } from "./types/Lobby";
 import ClientSky from "./ClientSky";
+import RAPIER from "@dimforge/rapier3d-compat";
 
 const base = import.meta.env.BASE_URL;
 
@@ -93,6 +94,48 @@ export default class World {
 
     this.sky = new ClientSky();
     this.scene.add(this.sky.mesh);
+
+    // const wall = AssetsManager.instance.getModelClone("wall");
+
+    // if (wall) {
+    //   const colliderObjects: any[] = [];
+    //   // wall.scene.position.y -= 0.5;
+    //   wall.scene.traverse((obj) => {
+    //     if (obj instanceof THREE.Mesh) {
+    //       const geom = obj.geometry as THREE.BufferGeometry;
+    //       const cloned = geom.clone();
+
+    //       // Apply scale, rotation, position (the whole world transform)
+    //       cloned.applyMatrix4(obj.matrixWorld);
+
+    //       const positionAttr = cloned.attributes.position;
+    //       const indexAttr = cloned.index;
+
+    //       if (!positionAttr) return;
+
+    //       const vertices = new Float32Array(positionAttr.array);
+    //       const indices = indexAttr
+    //         ? new Uint32Array(indexAttr.array)
+    //         : undefined;
+
+    //       if (indices) {
+    //         const phyObj = ClientPhysics.instance.createTrimesh(
+    //           new THREE.Vector3(0, 0, 0), // already baked world transform
+    //           new THREE.Quaternion(), // same
+    //           vertices,
+    //           indices
+    //         );
+
+    //         colliderObjects.push({ vertices: vertices, indices: indices });
+    //       }
+    //     }
+    //   });
+
+    //   console.log(colliderObjects, "col objects");
+
+    //   this.scene.add(wall.scene);
+    //   // wall.scene.position.y -= 0.5;
+    // }
 
     // Lights to match
     const light = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -663,6 +706,9 @@ export default class World {
         this.npcs.push(npcObject);
       });
     }
+
+    // const cells = this.genNavGrid();
+    // console.log(cells, "CELLS");
   }
 
   addNPC(data: any) {

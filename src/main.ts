@@ -20,6 +20,8 @@ import DebugState from "./state/DebugState";
 import ClientWeapon from "./ClientWeapon";
 import { USER_SETTINGS_LOCAL_STORE } from "./constants";
 import { Socket } from "socket.io-client";
+import ClientPhysics from "./ClientPhysics";
+import RAPIER from "@dimforge/rapier3d-compat";
 
 let world: World | null = null;
 
@@ -1020,12 +1022,12 @@ function getAimDistance(player: ClientPlayer): number {
   return 3;
 }
 
+let currentCameraDistance = InputManager.instance.cameraDistance; // persistent between frames
+
 function updateCameraFollow(delta: number) {
   if (!NetworkManager.instance.localId) return;
   const player = world?.getPlayerById(NetworkManager.instance.localId);
-  if (!player) return;
-
-  if (player.isDead) return;
+  if (!player || player.isDead) return;
 
   const input = InputManager.instance.getState();
   const aiming = input.aim;
@@ -1033,15 +1035,15 @@ function updateCameraFollow(delta: number) {
   const rightHandItem = player.rightHand?.item as ClientWeapon;
   const inVehicle = player.controlledObject != null;
 
-  // --- Smooth aiming transition only ---
+  // --- Smooth aiming transition only (unchanged) ---
   const aimTarget = aiming ? 1 : 0;
   aimBlend = THREE.MathUtils.lerp(
     aimBlend,
     aimTarget,
-    1 - Math.exp(-delta * 20) // higher = faster blend
+    1 - Math.exp(-delta * 20)
   );
 
-  // --- Mobile joystick input (instant) ---
+  // --- Mobile joystick input ---
   if (isMobile()) {
     InputManager.instance.cameraYaw -= joystickX * mobileSens;
     InputManager.instance.cameraPitch -= joystickY * mobileSens;
@@ -1058,35 +1060,102 @@ function updateCameraFollow(delta: number) {
   );
   const camRot = yawQuat.clone().multiply(pitchQuat);
 
-  // --- Distance + side offset with aim blend ---
+  // --- Distance + side offset ---
   const baseDistance = InputManager.instance.cameraDistance;
   const aimDistance = getAimDistance(player);
-  const distance = THREE.MathUtils.lerp(baseDistance, aimDistance, aimBlend);
+  const desiredDistance = THREE.MathUtils.lerp(
+    baseDistance,
+    aimDistance,
+    aimBlend
+  );
 
   const sideOffsetAmount = rightHandItem
     ? THREE.MathUtils.lerp(0, 0.5, aimBlend)
     : 0;
-  const sideOffset = new THREE.Vector3(sideOffsetAmount, 0, 0).applyQuaternion(
-    yawQuat
-  );
 
-  // --- Desired camera pos ---
   const height = inVehicle && aiming ? 0.6 : 0.75;
-  const backOffset = new THREE.Vector3(0, 0, distance).applyQuaternion(camRot);
-  const desiredCameraPos = playerPos
-    .clone()
-    .add(new THREE.Vector3(0, height, 0))
-    .add(sideOffset)
-    .add(backOffset);
-  const lookAtPoint = playerPos
-    .clone()
-    .add(new THREE.Vector3(0, height, 0))
-    .add(sideOffset);
+  const headPos = playerPos.clone().add(new THREE.Vector3(0, height, 0));
+
+  const sideOffset = new THREE.Vector3(sideOffsetAmount, 0, 0);
+  const rotatedSide = sideOffset.clone().applyQuaternion(camRot);
+
+  // --------------------------------------------------------------------
+  // --- Multi-ray camera collision check (instant in, smooth out) ---
+  // --------------------------------------------------------------------
+  const rapierWorld = ClientPhysics.instance.physicsWorld;
+  let targetZDist = desiredDistance;
+  let hitSomething = false;
+
+  if (rapierWorld) {
+    // build total offset direction (Z backward)
+    const totalOffset = new THREE.Vector3(0, 0, desiredDistance);
+    const offsetDir = totalOffset.clone().normalize().applyQuaternion(camRot);
+    const maxDist = desiredDistance;
+
+    // approximate sphere collision using 5 rays
+    const offsets = [
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.25, 0, 0),
+      new THREE.Vector3(-0.25, 0, 0),
+      new THREE.Vector3(0, 0.25, 0),
+      new THREE.Vector3(0, -0.25, 0),
+    ];
+
+    let minHit = Infinity;
+
+    for (const o of offsets) {
+      const origin = headPos.clone().add(o.applyQuaternion(camRot));
+      const ray = new RAPIER.Ray(origin, offsetDir);
+      const hit = rapierWorld.castRay(
+        ray,
+        maxDist,
+        true,
+        undefined,
+        undefined,
+        undefined,
+        player.physicsObject.rigidBody
+      );
+
+      if (hit && hit.timeOfImpact < minHit) {
+        minHit = hit.timeOfImpact;
+        hitSomething = true;
+      }
+    }
+
+    if (hitSomething) {
+      const cameraRadius = 0.3; // physical buffer before wall
+      const safeDist = Math.max(minHit - cameraRadius, 0.1);
+      targetZDist = Math.min(safeDist, desiredDistance);
+    }
+  }
+
+  // --- Z offset behavior: instant in, smooth out ---
+  if (hitSomething) {
+    // Snap in immediately if camera collides
+    currentCameraDistance = targetZDist;
+  } else {
+    // Smoothly restore distance when free
+    const smoothingSpeed = 6; // lower = slower restore
+    currentCameraDistance = THREE.MathUtils.lerp(
+      currentCameraDistance,
+      targetZDist,
+      1 - Math.exp(-delta * smoothingSpeed)
+    );
+  }
+
+  // --- Final camera position ---
+  const backOffset = new THREE.Vector3(
+    0,
+    0,
+    currentCameraDistance
+  ).applyQuaternion(camRot);
+  const finalCameraPos = headPos.clone().add(rotatedSide).add(backOffset);
+  const lookAtPoint = headPos.clone().add(rotatedSide);
 
   updateRecoil(delta, aiming);
 
-  // --- Apply instantly (no smoothing) ---
-  camera.position.copy(desiredCameraPos);
+  // --- Apply instantly (no smoothing except z distance) ---
+  camera.position.copy(finalCameraPos);
   camera.lookAt(lookAtPoint);
 }
 

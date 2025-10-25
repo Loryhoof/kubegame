@@ -151,6 +151,8 @@ class ClientPlayer {
 
   public lobbyId: string | null = null;
 
+  public lastUnclippedCamPos: THREE.Vector3 | null = null;
+  public lastLookDir: THREE.Vector3 | null = null;
   constructor(
     world: World,
     networkId: string,
