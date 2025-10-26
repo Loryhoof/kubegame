@@ -10,9 +10,7 @@ import { PLAYER_MASS } from "./constants";
 import ClientPhysics, { PhysicsObject } from "./ClientPhysics";
 import ClientWeapon from "./ClientWeapon";
 import { IHoldable } from "./interfaces/IHoldable";
-import NetworkManager from "./NetworkManager";
 import { randFloat } from "three/src/math/MathUtils";
-import ClientVehicle from "./ClientVehicle";
 
 const skinColor = 0xffe9c4;
 const pantColor = 0x4756c9;
@@ -32,6 +30,10 @@ export type Hand = {
   side: "left" | "right";
   bone: THREE.Bone;
   item?: IHoldable;
+};
+
+export type ItemSlot = {
+  item: IHoldable | undefined;
 };
 
 type StateData = {
@@ -68,6 +70,8 @@ type StateData = {
   isDead: boolean;
   killCount: number;
   lobbyId: string;
+  selectedItemSlot: number;
+  itemSlots: ItemSlot[];
 };
 
 class ClientPlayer {
@@ -153,6 +157,10 @@ class ClientPlayer {
 
   public lastUnclippedCamPos: THREE.Vector3 | null = null;
   public lastLookDir: THREE.Vector3 | null = null;
+
+  public selectedItemSlot: number = 0;
+  public itemSlots: ItemSlot[] = [];
+
   constructor(
     world: World,
     networkId: string,
@@ -318,6 +326,15 @@ class ClientPlayer {
 
   //   this.dummy.add(hornSound);
   // }
+
+  removeItem(hand: Hand) {
+    console.log("Attempting to remove: ", hand.item, "in hand: ", hand.side);
+    if (hand?.item?.object) {
+      this.scene.remove(hand.item.object);
+      console.log("Worked");
+    }
+    hand.item = undefined;
+  }
 
   getKeys() {
     if (!this.isLocalPlayer) return null;
@@ -593,17 +610,19 @@ class ClientPlayer {
   }
 
   cleanup() {
+    // Remove ragdoll parts
     this.ragdollPairs.forEach((pair) => {
       this.scene.remove(pair.mesh);
       ClientPhysics.instance.remove(pair.physics);
     });
-
-    // commented out for now cuz respawn dont actually removes the char from the scene
-    // if (this.leftHand.item) this.scene.remove(this.leftHand.item.object);
-    // if (this.rightHand.item) this.scene.remove(this.rightHand.item.object);
-
     this.ragdollPairs = [];
     this.ragdollReady = false;
+
+    this.removeItem(this.leftHand);
+    this.removeItem(this.rightHand);
+
+    // Hide old model after ragdoll
+    this.dummy.visible = false;
   }
 
   prepareRagdoll() {
@@ -704,6 +723,7 @@ class ClientPlayer {
     this.cleanup();
 
     this.dummy.visible = true;
+    this.handleSelectedItemChange(this.selectedItemSlot);
   }
 
   setRemoteState(state: StateData) {
@@ -724,6 +744,8 @@ class ClientPlayer {
       camQuat,
       isDead,
       killCount,
+      selectedItemSlot,
+      itemSlots,
     } = state;
 
     this.viewQuaternion = camQuat;
@@ -771,8 +793,12 @@ class ClientPlayer {
       }
     }
 
+    this.itemSlots = itemSlots;
+
     // Initial material setup
     if (!this.hasInit) {
+      this.handleSelectedItemChange(selectedItemSlot);
+
       this.model.traverse((item: any) => {
         if (item instanceof THREE.SkinnedMesh) {
           if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
@@ -795,6 +821,10 @@ class ClientPlayer {
       this.hasInit = true;
       this.dummy.visible = true;
     }
+
+    if (this.selectedItemSlot != selectedItemSlot) {
+      this.handleSelectedItemChange(selectedItemSlot);
+    }
   }
 
   handleHandItem(
@@ -814,14 +844,6 @@ class ClientPlayer {
         weapon.isReloading = item.isReloading;
 
         if (weapon.isReloading) weapon.reload();
-      } else {
-        // create new
-        const mesh = AssetsManager.instance.models.get("pistol")!.scene.clone();
-        this.scene.add(mesh);
-
-        const weapon = new ClientWeapon("pistol", mesh);
-
-        hand.item = weapon;
       }
     }
   }
@@ -845,6 +867,8 @@ class ClientPlayer {
       isDead,
       killCount,
       lobbyId,
+      selectedItemSlot,
+      itemSlots,
     } = state;
 
     this.lobbyId = lobbyId;
@@ -884,9 +908,13 @@ class ClientPlayer {
       }
     }
 
+    this.itemSlots = itemSlots;
+
     // Initial material setup
     if (!this.hasInit) {
       this.model.traverse((item: any) => {
+        this.handleSelectedItemChange(selectedItemSlot);
+
         if (item instanceof THREE.SkinnedMesh) {
           if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
             item.material = new THREE.MeshStandardMaterial({ color });
@@ -907,6 +935,30 @@ class ClientPlayer {
       });
       this.hasInit = true;
       this.dummy.visible = true;
+    }
+
+    if (this.selectedItemSlot != selectedItemSlot) {
+      this.handleSelectedItemChange(selectedItemSlot);
+    }
+  }
+
+  handleSelectedItemChange(slot: number) {
+    this.selectedItemSlot = slot;
+
+    const item = this.itemSlots[this.selectedItemSlot].item;
+
+    if (item == undefined) {
+      this.removeItem(this.leftHand);
+      this.removeItem(this.rightHand);
+      return;
+    }
+
+    if (this.rightHand.item?.name == item.name) return;
+
+    if (item.name == "pistol") {
+      const mesh = AssetsManager.instance.models.get("pistol")!.scene.clone();
+      this.scene.add(mesh);
+      this.rightHand.item = new ClientWeapon("pistol", mesh);
     }
   }
 
@@ -1139,7 +1191,7 @@ class ClientPlayer {
     if (!this.leftHand?.bone || !this.rightHand?.bone) return;
     if (!this.leftHand.item && !this.rightHand.item) return;
 
-    const applyHandTransform = (hand: any) => {
+    const applyHandTransform = (hand: Hand) => {
       if (!hand.item) return;
 
       const worldPos = new THREE.Vector3();
@@ -1164,6 +1216,17 @@ class ClientPlayer {
 
     applyHandTransform(this.leftHand);
     applyHandTransform(this.rightHand);
+  }
+
+  updateSlots() {
+    if (InputManager.instance.isActionJustPressed("slot1"))
+      this.selectedItemSlot = 0;
+    else if (InputManager.instance.isActionJustPressed("slot2"))
+      this.selectedItemSlot = 1;
+    else if (InputManager.instance.isActionJustPressed("slot3"))
+      this.selectedItemSlot = 2;
+    else if (InputManager.instance.isActionJustPressed("slot4"))
+      this.selectedItemSlot = 3;
   }
 
   die() {
@@ -1207,6 +1270,8 @@ class ClientPlayer {
     this.updateHands();
 
     this.debugCapsule.position.copy(this.dummy.position);
+
+    // this.updateSlots();
 
     // if (leftArm && rightArm) {
     //   const baseRot = -Math.PI / 2;

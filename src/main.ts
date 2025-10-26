@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import World from "./World";
 import InputManager from "./InputManager";
-import ClientPlayer from "./ClientPlayer";
+import ClientPlayer, { ItemSlot } from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
 import {
   createToast,
@@ -71,6 +71,8 @@ type NetworkPlayer = {
   isDead: boolean;
   killCount: number;
   lobbyId: string;
+  selectedItemSlot: number;
+  itemSlots: ItemSlot[];
 };
 
 let ping = 0;
@@ -709,6 +711,8 @@ function interpolatePlayers() {
         isDead: pNew.isDead,
         killCount: pNew.killCount,
         lobbyId: pNew.lobbyId,
+        selectedItemSlot: pNew.selectedItemSlot,
+        itemSlots: pNew.itemSlots,
       });
     }
   }
@@ -1222,6 +1226,8 @@ function updateUI(player: ClientPlayer, wantsToInteract: boolean) {
     ammo: player.ammo,
     isDead: player.isDead,
     lobbyDetails: world?.lobbyDetails,
+    selectedItemSlot: player.selectedItemSlot,
+    itemSlots: player.itemSlots,
   };
   window.dispatchEvent(new CustomEvent("player-update", { detail: eventData }));
   window.dispatchEvent(

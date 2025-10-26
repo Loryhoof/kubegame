@@ -16,7 +16,11 @@ type Action =
   | "shoot"
   | "aim"
   | "spawnVehicle"
-  | "useHorn";
+  | "useHorn"
+  | "slot1"
+  | "slot2"
+  | "slot3"
+  | "slot4";
 
 type InputBinding = {
   type: "key" | "mouse" | "combo";
@@ -38,6 +42,10 @@ const makeEmptyActionState = (): Record<Action, boolean> => ({
   aim: false,
   spawnVehicle: false,
   useHorn: false,
+  slot1: false,
+  slot2: false,
+  slot3: false,
+  slot4: false,
 });
 
 export default class InputManager {
@@ -79,6 +87,10 @@ export default class InputManager {
     ],
     spawnVehicle: [{ type: "key", code: "k" }],
     useHorn: [{ type: "key", code: "h" }],
+    slot1: [{ type: "key", code: "1" }],
+    slot2: [{ type: "key", code: "2" }],
+    slot3: [{ type: "key", code: "3" }],
+    slot4: [{ type: "key", code: "4" }],
   };
 
   private constructor() {

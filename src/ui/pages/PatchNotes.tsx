@@ -5,6 +5,12 @@ export default function PatchNotes() {
 
   const notes = [
     {
+      version: "v0.1.41",
+      date: "2025-10-26",
+      changes: ["Added item slots"],
+      fixes: ["Fixed melee not working while aiming"],
+    },
+    {
       version: "v0.1.4",
       date: "2025-10-26",
       changes: [
