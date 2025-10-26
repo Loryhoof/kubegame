@@ -8,7 +8,6 @@ export default function LobbyFinder() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ignore if typing into an input or textarea
       const tag = (e.target as HTMLElement).tagName;
       if (
         tag === "INPUT" ||
@@ -19,23 +18,35 @@ export default function LobbyFinder() {
       }
 
       if (e.key.toLowerCase() === "m") {
-        setActive((prev) => {
-          const next = !prev;
-
-          if (next) document.exitPointerLock();
-          else {
-            const renderer = InputManager.instance.getRenderer();
-            if (renderer) renderer.domElement.requestPointerLock();
-          }
-
-          InputManager.instance.setIgnoreKeys(next);
-          return next;
-        });
+        openMenu();
       }
     };
 
+    const openMenu = () => {
+      setActive(true);
+      document.exitPointerLock();
+      InputManager.instance.setIgnoreKeys(true);
+    };
+
+    const closeMenu = () => {
+      setActive(false);
+      InputManager.instance.setIgnoreKeys(false);
+      const renderer = InputManager.instance.getRenderer();
+      if (renderer) renderer.domElement.requestPointerLock();
+    };
+
+    const handleCustomOpen = () => openMenu();
+    const handleCustomClose = () => closeMenu();
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("open-lobby-finder", handleCustomOpen);
+    window.addEventListener("close-lobby-finder", handleCustomClose);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("open-lobby-finder", handleCustomOpen);
+      window.removeEventListener("close-lobby-finder", handleCustomClose);
+    };
   }, []);
 
   const handleClose = () => {

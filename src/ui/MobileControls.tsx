@@ -18,6 +18,11 @@ export default function MobileControls() {
   const ios = isIOS();
 
   const handleAction = (action: string, pressed: boolean) => {
+    if (action === "openLobby" && pressed) {
+      window.dispatchEvent(new Event("open-lobby-finder"));
+      return;
+    }
+
     const event = new CustomEvent("mobile-buttons", {
       detail: { action, pressed } as any,
     });
@@ -83,6 +88,8 @@ export default function MobileControls() {
                   FS
                 </button>
               )}
+              {createButton("Lobby", "openLobby")}
+
               {createButton("Car", "spawnVehicle")}
 
               {createButton("Use", "interact")}
