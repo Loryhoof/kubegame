@@ -33,6 +33,30 @@ export default function MobileControls() {
     setIsActive(isMobile());
   }, []);
 
+  useEffect(() => {
+    const handleResetInputs = () => {
+      const actionsToReset = [
+        "aim",
+        "sprint",
+        "shoot",
+        "jump",
+        "reload",
+        "interact",
+      ];
+
+      actionsToReset.forEach((action) => {
+        const event = new CustomEvent("mobile-buttons", {
+          detail: { action, pressed: false } as any,
+        });
+        window.dispatchEvent(event);
+      });
+    };
+
+    window.addEventListener("reset-controls", handleResetInputs);
+    return () =>
+      window.removeEventListener("reset-controls", handleResetInputs);
+  }, []);
+
   const createButton = (label: string, key: string) => (
     <button
       className="bg-white text-black text-sm font-bold p-2 rounded-xl w-12 h-12 active:bg-gray-200 user-select-none"

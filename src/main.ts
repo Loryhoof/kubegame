@@ -1189,6 +1189,7 @@ function onDeathEvent(player: ClientPlayer) {
   };
 
   window.dispatchEvent(new CustomEvent("ui-state", { detail: eventData }));
+  window.dispatchEvent(new CustomEvent("reset-controls"));
 }
 
 function onRespawnEvent(player: ClientPlayer) {
