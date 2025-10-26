@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { DeathState } from "./Main";
+import { DeathState } from "./Game";
 import NetworkManager from "../NetworkManager";
 import { Socket } from "socket.io-client";
 import { isMobile } from "../utils";
 
 export default function DeathScreen({ state }: { state: DeathState }) {
-  const [socket] = useState<Socket>(NetworkManager.instance.getSocket());
+  const [socket] = useState<Socket>(
+    NetworkManager.instance.getSocket(localStorage.getItem("jwt") as string)
+  );
 
   const handleRespawnRequest = () => {
     socket.emit("player-respawn");

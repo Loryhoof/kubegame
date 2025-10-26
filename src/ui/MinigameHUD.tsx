@@ -89,12 +89,16 @@ export default function MinigameHUD() {
   const localId = NetworkManager.instance?.localId;
 
   const handleBackToHub = useCallback(() => {
-    NetworkManager.instance.getSocket().emit("minigame-exit");
+    NetworkManager.instance
+      .getSocket(localStorage.getItem("jwt") as string)
+      .emit("minigame-exit");
     handleReset();
   }, []);
 
   const handleRestart = useCallback(() => {
-    NetworkManager.instance.getSocket().emit("minigame-restart");
+    NetworkManager.instance
+      .getSocket(localStorage.getItem("jwt") as string)
+      .emit("minigame-restart");
     handleReset();
   }, []);
 

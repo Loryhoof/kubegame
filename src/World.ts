@@ -59,7 +59,9 @@ export default class World {
   registerObject(obj: THREE.Group) {
     this.scene.add(obj);
 
-    const socket = NetworkManager.instance.getSocket();
+    const socket = NetworkManager.instance.getSocket(
+      localStorage.getItem("jwt") as string
+    );
 
     const geometries: any[] = [];
     const meshes: any[] = [];

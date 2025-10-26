@@ -13,7 +13,9 @@ const CHAR_LIMIT = 500;
 
 export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [socket] = useState<Socket>(NetworkManager.instance.getSocket());
+  const [socket] = useState<Socket>(
+    NetworkManager.instance.getSocket(localStorage.getItem("jwt") as string)
+  );
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -138,6 +140,13 @@ export default function Chat() {
         addSystemMessage(`Command: Get server info`);
       },
     },
+    stats: {
+      description: "Get player stats",
+      usage: "/stats",
+      execute: () => {
+        socket.emit("user-command", { command: "stats" });
+      },
+    },
     help: {
       description: "List all commands",
       usage: "/help",
@@ -203,10 +212,18 @@ export default function Chat() {
       addSystemMessage(info);
     };
 
+    const handlePlayerStatsCommand = (e: any) => {
+      const info =
+        `Player Stats:\n` + `Kills: ${e.kills}\n` + `Deaths: ${e.deaths}`;
+      addSystemMessage(info);
+    };
+
+    socket.on("player-stats", handlePlayerStatsCommand);
     socket.on("server-info", handleServerInfoCommand);
     socket.on("chat-message", handleMessage);
 
     return () => {
+      socket.off("player-stats", handlePlayerStatsCommand);
       socket.off("server-info", handleServerInfoCommand);
       socket.off("chat-message", handleMessage);
     };

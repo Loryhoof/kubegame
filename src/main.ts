@@ -1628,29 +1628,48 @@ function resizeRenderer() {
   camera.updateProjectionMatrix();
 }
 
-async function startConnection() {
-  socket = NetworkManager.instance.getSocket();
+async function startConnection(token: string) {
+  socket = NetworkManager.instance.getSocket(token);
 
   if (!socket) return;
+
   socket.on("connect", () => {
-    console.log("Connected with server with id:", socket?.id);
+    console.log("Connected with auth, id:", socket?.id);
     init();
   });
 
   socket.on("connect_error", (err: any) => {
-    console.error("Socket connection error:", err);
-    window.dispatchEvent(
-      new CustomEvent("loading-status", {
-        detail: {
-          error: {
-            title: "Connection error",
-            info: "The server appears to be unreachable, please try again later",
-          },
-        },
-      })
-    );
+    console.error("Socket auth error:", err);
+
+    // If token failed → force logout
+    localStorage.removeItem("jwt");
+    window.location.href = "/";
   });
 }
+
+// async function startConnection() {
+//   socket = NetworkManager.instance.getSocket();
+
+//   if (!socket) return;
+//   socket.on("connect", () => {
+//     console.log("Connected with server with id:", socket?.id);
+//     init();
+//   });
+
+//   socket.on("connect_error", (err: any) => {
+//     console.error("Socket connection error:", err);
+//     window.dispatchEvent(
+//       new CustomEvent("loading-status", {
+//         detail: {
+//           error: {
+//             title: "Connection error",
+//             info: "The server appears to be unreachable, please try again later",
+//           },
+//         },
+//       })
+//     );
+//   });
+// }
 
 function resetWorld() {
   console.log("Resetting world...");
@@ -1744,7 +1763,14 @@ async function init() {
   }, 2000);
 }
 
-window.addEventListener("join-world", () => {
+window.addEventListener("join-world", async () => {
   console.log("joining world...");
-  startConnection();
+
+  const token = localStorage.getItem("jwt");
+  if (!token) {
+    window.location.href = "/"; // go back to login screen
+    return;
+  }
+
+  await startConnection(token);
 });

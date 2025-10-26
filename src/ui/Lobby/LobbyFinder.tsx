@@ -44,9 +44,11 @@ export default function LobbyFinder() {
   };
 
   const handleSelect = (mode: string) => {
-    NetworkManager.instance.getSocket().emit("user-command", {
-      command: mode,
-    });
+    NetworkManager.instance
+      .getSocket(localStorage.getItem("jwt") as string)
+      .emit("user-command", {
+        command: mode,
+      });
     handleClose();
   };
 

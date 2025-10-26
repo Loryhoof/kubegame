@@ -1,94 +1,106 @@
 import { useEffect, useState } from "react";
 import "../../index.css";
 import { GameManager } from "../GameManager";
-import DebugState from "../state/DebugState";
 import { parseInviteURL } from "../utils";
+import { GoogleLogin } from "@react-oauth/google";
+import { handleGoogleLogin } from "../services/authService";
+import { useAuthValidate } from "../auth/useAuthValidate";
+import { FaDiscord } from "react-icons/fa";
 
-type ButtonProps = {
-  title: string;
-  onClick: () => void;
-};
-
-const Button = ({ title, onClick }: ButtonProps) => {
-  return (
-    <div onClick={onClick} className="p-2 hover:bg-white hover:text-black">
-      {title}
-    </div>
-  );
-};
-
-const Header = () => {
-  const handleButtonClick = () => {};
-  return (
-    <div className="fixed top-0 w-full border-b border-white flex flex-row gap-4 p-4 items-center justify-center">
-      {/* <Button title={"Play now"} onClick={handleButtonClick}></Button>
-      <Button title={"Server browser"} onClick={handleButtonClick}></Button> */}
-      {/* <Button title={"Discord"} onClick={handleButtonClick}></Button> */}
-      <Button title={"Patch notes"} onClick={handleButtonClick}></Button>
-    </div>
-  );
-};
+import { useNavigate } from "react-router-dom";
 
 const Footer = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="fixed bottom-5">
-      <div className="flex flex-row text-sm gap-4">
+      <div className="flex flex-row text-sm gap-6 items-center">
+        {/* Discord Link */}
         <a
           className="hover:underline"
           target="_blank"
           rel="noopener noreferrer"
           href="https://discord.gg/xYEgggpKHg"
         >
-          Discord
+          <span className="flex row gap-2 items-center">
+            <FaDiscord />
+            Join us on Discord!
+          </span>
         </a>
-        <p className="hover:underline">Patch notes</p>
+
+        {/* Patch Notes Button */}
+        <button
+          onClick={() => navigate("/patch-notes")}
+          className="hover:underline opacity-80 hover:opacity-100 transition"
+        >
+          Patch Notes
+        </button>
       </div>
     </div>
   );
 };
 
 const StartingScreen = () => {
+  const { authenticated, loading, revalidate } = useAuthValidate();
+  const [loginError, setLoginError] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [lobbyId, setLobbyId] = useState<string | null>(null);
-  //
 
   const handleJoinWorld = () => {
     GameManager.instance.joinWorld();
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("jwt");
+    window.location.href = "/";
+  };
+
   useEffect(() => {
     const data = parseInviteURL();
-
-    console.log(data, "Data ");
-
     if (data) setLobbyId(data);
   }, []);
 
   return (
-    <>
-      <div className="text-white flex flex-col w-screen h-screen items-center justify-center bg-gray-900 user-select-none">
-        {/* Header */}
-        {/* <Header /> */}
+    <div className="text-white flex flex-col w-screen h-screen items-center justify-center bg-gray-900 user-select-none">
+      <div className="text-3xl font-extrabold text-yellow-400 tracking-wider font-mono mb-8">
+        kubegame
+      </div>
 
-        {/* Title */}
-        <div className="text-3xl font-extrabold text-yellow-400 tracking-wider font-mono mb-8">
-          kubegame{" "}
-        </div>
+      <div>
+        {loading && <div>Checking session...</div>}
 
-        <div>
-          <div className="flex flex-col gap-4">
+        {!loading && !authenticated && !loginLoading && (
+          <div className="flex flex-col items-center gap-2">
+            <GoogleLogin
+              onSuccess={async (res) => {
+                setLoginLoading(true);
+                setLoginError(false);
+
+                const success = await handleGoogleLogin(res.credential);
+                if (!success) setLoginError(true);
+                else await revalidate();
+
+                setLoginLoading(false);
+              }}
+              onError={() => setLoginError(true)}
+            />
+
+            {loginError && (
+              <div className="text-red-400 text-sm mt-2">
+                Login failed. Try again.
+              </div>
+            )}
+          </div>
+        )}
+
+        {loginLoading && <div className="text-gray-400">Logging in...</div>}
+
+        {!loading && authenticated && (
+          <div className="flex flex-col gap-3 items-center">
             <div
               onClick={handleJoinWorld}
-              className="border-2 border-white font-bold text-white px-24 py-3 hover:bg-white hover:text-black text-center"
+              className="border-2 border-white font-bold text-white px-24 py-3 hover:bg-white hover:text-black text-center cursor-pointer"
             >
-              {/* Join <span className="text-yellow-400 font-bold">Hub</span> */}
-              {/* {lobbyId ? (
-                "Join"
-              ) : (
-                <>
-                  Join Lobby
-                  <span className="text-yellow-400">{lobbyId}</span>
-                </>
-              )} */}
               {lobbyId ? (
                 <>
                   Join Lobby <span className="text-yellow-400">{lobbyId}</span>
@@ -97,19 +109,19 @@ const StartingScreen = () => {
                 "Join World"
               )}
             </div>
-            {/* 
-            <div
-              onClick={handleJoinWorld}
-              className="border-2 border-white font-bold text-white px-24 py-3 hover:bg-white hover:text-black text-center"
-            >
-              Server browser
-            </div> */}
-          </div>
-        </div>
 
-        <Footer />
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-400 hover:text-white underline mt-2"
+            >
+              Logout
+            </button>
+          </div>
+        )}
       </div>
-    </>
+
+      <Footer />
+    </div>
   );
 };
 
