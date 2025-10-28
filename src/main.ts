@@ -24,8 +24,8 @@ import ClientPhysics from "./ClientPhysics";
 import RAPIER from "@dimforge/rapier3d-compat";
 import {
   deserializeBinaryWorld,
-  deserializePlayer,
   serializeBinaryPlayerInput,
+  serializeBinaryVehicleInput,
 } from "./serializeHelper";
 import ClientNPC from "./ClientNPC";
 
@@ -1411,16 +1411,15 @@ function updateLocalCharacterPrediction(player: ClientPlayer, delta: number) {
   while (accumulator >= FIXED_DT) {
     // --- 1) Collect input & predict instantly ---
     const actions = InputManager.instance.getState();
-    // const input = {
-    //   type: "character",
-    //   seq: inputSeq++,
-    //   dt: FIXED_DT,
-    //   actions: actions,
-    //   camQuat: camera.quaternion.clone(),
-    //   camPos: camera.position.clone(),
-    // };
-    // pendingInputs.push(input);
-    // socket?.emit("playerInput", input);
+    const input = {
+      type: "character",
+      seq: inputSeq++,
+      dt: FIXED_DT,
+      actions: actions,
+      camQuat: camera.quaternion.clone(),
+      camPos: camera.position.clone(),
+    };
+    pendingInputs.push(input);
 
     const buffer = serializeBinaryPlayerInput({
       seq: inputSeq++,
@@ -1538,7 +1537,20 @@ function updateLocalVehiclePrediction(vehicle: ClientVehicle, delta: number) {
       camPos: camera.position.clone(),
     };
     pendingVehicleInputs.push(input);
-    socket!.emit("vehicleInput", input);
+
+    const buffer = serializeBinaryVehicleInput({
+      seq: vehicleInputSeq++,
+      dt: FIXED_DT,
+      actions,
+      camQuat: [
+        camera.quaternion.x,
+        camera.quaternion.y,
+        camera.quaternion.z,
+        camera.quaternion.w,
+      ],
+      camPos: camera.position,
+    });
+    socket!.emit("vehicleInput", buffer);
 
     // Predict immediately for responsiveness
     vehicle.predictMovementCustom(actions);

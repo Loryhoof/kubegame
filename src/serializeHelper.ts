@@ -279,116 +279,6 @@ export function deserializeBinaryWorld(buffer: ArrayBuffer) {
   return { time, players, vehicles, npcs };
 }
 
-export function deserializeBinaryPlayers(arrayBuffer: ArrayBuffer) {
-  const view = new DataView(arrayBuffer);
-  let offset = 0;
-
-  const playerCount = view.getUint16(offset);
-  offset += 2;
-
-  const players: any[] = [];
-
-  for (let i = 0; i < playerCount; i++) {
-    // --- ID ---
-    const idLength = view.getUint8(offset++);
-    const idBytes = new Uint8Array(arrayBuffer, offset, idLength);
-    const id = new TextDecoder().decode(idBytes);
-    offset += idLength;
-
-    // --- POSITION ---
-    const px = view.getFloat32(offset);
-    offset += 4;
-    const py = view.getFloat32(offset);
-    offset += 4;
-    const pz = view.getFloat32(offset);
-    offset += 4;
-
-    // --- ROTATION QUATERNION ---
-    const qx = view.getFloat32(offset);
-    offset += 4;
-    const qy = view.getFloat32(offset);
-    offset += 4;
-    const qz = view.getFloat32(offset);
-    offset += 4;
-    const qw = view.getFloat32(offset);
-    offset += 4;
-
-    // --- VELOCITY ---
-    const vx = view.getFloat32(offset);
-    offset += 4;
-    const vy = view.getFloat32(offset);
-    offset += 4;
-    const vz = view.getFloat32(offset);
-    offset += 4;
-
-    // --- IS DEAD (Uint8) ---
-    const isDead = view.getUint8(offset);
-    offset += 1;
-
-    // --- KEYMASK ---
-    const keyMask = view.getUint16(offset);
-    offset += 2;
-
-    // --- LAST PROCESSED INPUT SEQ ---
-    const lastSeq = view.getUint16(offset);
-    offset += 2;
-
-    // --- VIEW QUATERNION ---
-    const vqx = view.getFloat32(offset);
-    offset += 4;
-    const vqy = view.getFloat32(offset);
-    offset += 4;
-    const vqz = view.getFloat32(offset);
-    offset += 4;
-    const vqw = view.getFloat32(offset);
-    offset += 4;
-
-    // Push into result array
-    players.push({
-      id,
-      position: { x: px, y: py, z: pz },
-      quaternion: { x: qx, y: qy, z: qz, w: qw },
-      velocity: { x: vx, y: vy, z: vz },
-      isDead: isDead === 1,
-      keys: decodeKeys(keyMask),
-      lastProcessedInputSeq: lastSeq,
-      viewQuaternion: { x: vqx, y: vqy, z: vqz, w: vqw },
-    });
-  }
-
-  return players;
-}
-
-export function deserializePlayer(data: any) {
-  return {
-    id: data.i,
-    position: {
-      x: data.p[0],
-      y: data.p[1],
-      z: data.p[2],
-    },
-    quaternion: {
-      x: data.q[0],
-      y: data.q[1],
-      z: data.q[2],
-      w: data.q[3],
-    },
-    velocity: {
-      x: data.v[0],
-      y: data.v[1],
-      z: data.v[2],
-    },
-    keys: decodeKeys(data.k),
-    lastProcessedInputSeq: data.s,
-    viewQuaternion: {
-      x: data.vq[0],
-      y: data.vq[1],
-      z: data.vq[2],
-      w: data.vq[3],
-    },
-  };
-}
-
 export function serializeBinaryPlayerInput(input: any): ArrayBuffer {
   // Structure:
   // 0–1   uint16 action bitmask
@@ -433,6 +323,46 @@ export function serializeBinaryPlayerInput(input: any): ArrayBuffer {
     view.setFloat32(offset, p[i]);
     offset += 4;
   }
+
+  return buffer;
+}
+
+export function serializeBinaryVehicleInput(data: any): ArrayBuffer {
+  const keys = Object.keys(data.actions);
+  const buffer = new ArrayBuffer(4 + 4 + 2 + 16 + 12);
+  const view = new DataView(buffer);
+  let offset = 0;
+
+  // sequence
+  view.setUint32(offset, data.seq);
+  offset += 4;
+
+  // delta time (float32)
+  view.setFloat32(offset, data.dt);
+  offset += 4;
+
+  // encode key bitmask
+  let mask = 0;
+  for (let i = 0; i < keys.length; i++) {
+    if (data.actions[keys[i]]) mask |= 1 << i;
+  }
+  view.setUint16(offset, mask);
+  offset += 2;
+
+  // camera quaternion (4 × float32)
+  const quat = data.camQuat;
+  for (let i = 0; i < 4; i++) {
+    view.setFloat32(offset, quat[i]);
+    offset += 4;
+  }
+
+  // camera position (3 × float32)
+  view.setFloat32(offset, data.camPos.x);
+  offset += 4;
+  view.setFloat32(offset, data.camPos.y);
+  offset += 4;
+  view.setFloat32(offset, data.camPos.z);
+  offset += 4;
 
   return buffer;
 }
