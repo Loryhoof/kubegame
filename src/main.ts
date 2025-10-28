@@ -736,7 +736,7 @@ const extrapolationState = new Map<
   string,
   { basePos: THREE.Vector3; lastTime: number }
 >();
-const serverTickMs = 1000 / 20;
+const serverTickMs = 1000 / DebugState.instance.serverHz;
 
 function interpolatePlayers() {
   if (!worldIsReady || !NetworkManager.instance.localId) return;

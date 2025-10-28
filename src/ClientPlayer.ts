@@ -1324,6 +1324,8 @@ class ClientPlayer {
       });
     }
 
+    this.isSitting = !!this.controlledObject;
+
     if (this.isDead) return;
 
     if (this.dummyCube) this.dummyCube.position.copy(this.getPosition());
