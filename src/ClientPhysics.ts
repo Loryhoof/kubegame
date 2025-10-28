@@ -208,7 +208,7 @@ export default class ClientPhysics {
       .setAdditionalMass(1500);
     let rigidBody = this.physicsWorld!.createRigidBody(rbDesc);
 
-    let boxColDesc = RAPIER.ColliderDesc.cuboid(1, 0.25, 2);
+    let boxColDesc = RAPIER.ColliderDesc.cuboid(1, 0.25, 2.5);
     let collider = this.physicsWorld!.createCollider(boxColDesc, rigidBody);
 
     return { rigidBody, collider };
