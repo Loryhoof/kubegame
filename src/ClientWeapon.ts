@@ -63,6 +63,10 @@ export default class ClientWeapon implements IHoldable {
     if (reloadSound.isPlaying) return;
 
     reloadSound.play();
+
+    // setTimeout(() => {
+    //   this.isReloading = false;
+    // }, 1000);
   }
 
   use(): boolean {

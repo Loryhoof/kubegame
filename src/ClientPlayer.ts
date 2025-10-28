@@ -161,6 +161,8 @@ class ClientPlayer {
   public selectedItemSlot: number = 0;
   public itemSlots: ItemSlot[] = [];
 
+  private dummyCube: any;
+
   constructor(
     world: World,
     networkId: string,
@@ -280,7 +282,7 @@ class ClientPlayer {
       }
     });
 
-    this.dummy.visible = false;
+    this.dummy.visible = true;
 
     this.scene.add(this.dummy);
     this.dummy.add(this.model);
@@ -309,6 +311,16 @@ class ClientPlayer {
     }
 
     this.physicsObject = ClientPhysics.instance.createPlayerCapsule();
+
+    const cube = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    );
+    scene.add(cube);
+    cube.position.copy(this.model.position);
+    cube.visible = false;
+
+    this.dummyCube = cube;
   }
 
   // initAudio() {
@@ -382,6 +394,7 @@ class ClientPlayer {
     this.cleanup();
 
     this.scene.remove(this.dummy);
+    this.scene.remove(this.dummyCube);
   }
 
   rayDown(): THREE.Vector3 | null {
@@ -748,12 +761,14 @@ class ClientPlayer {
       itemSlots,
     } = state;
 
+    console.log("SET REMOTE STATE");
+
     this.viewQuaternion = camQuat;
 
-    this.coins = coins;
+    // this.coins = coins;
     this.color = color;
     this.velocity.copy(velocity);
-    this.health = health;
+    // this.health = health;
     this.isDead = isDead;
     this.dummy.position.copy(position);
     // this.keys = keys;
@@ -777,27 +792,27 @@ class ClientPlayer {
       0.25
     );
 
-    if (leftHand) {
-      const { side, item } = leftHand;
+    // if (leftHand) {
+    //   const { side, item } = leftHand;
 
-      if (side && item) {
-        this.handleHandItem(side, item);
-      }
-    }
+    //   if (side && item) {
+    //     this.handleHandItem(side, item);
+    //   }
+    // }
 
-    if (rightHand) {
-      const { side, item } = rightHand;
+    // if (rightHand) {
+    //   const { side, item } = rightHand;
 
-      if (side && item) {
-        this.handleHandItem(side, item);
-      }
-    }
+    //   if (side && item) {
+    //     this.handleHandItem(side, item);
+    //   }
+    // }
 
-    this.itemSlots = itemSlots;
+    // this.itemSlots = itemSlots;
 
     // Initial material setup
     if (!this.hasInit) {
-      this.handleSelectedItemChange(selectedItemSlot);
+      // this.handleSelectedItemChange(selectedItemSlot);
 
       this.model.traverse((item: any) => {
         if (item instanceof THREE.SkinnedMesh) {
@@ -822,9 +837,13 @@ class ClientPlayer {
       this.dummy.visible = true;
     }
 
-    if (this.selectedItemSlot != selectedItemSlot) {
-      this.handleSelectedItemChange(selectedItemSlot);
-    }
+    // if (this.selectedItemSlot != selectedItemSlot) {
+    //   this.handleSelectedItemChange(selectedItemSlot);
+    // }
+  }
+
+  getHandItem(): IHoldable | undefined {
+    return this.rightHand.item;
   }
 
   handleHandItem(
@@ -846,6 +865,49 @@ class ClientPlayer {
         if (weapon.isReloading) weapon.reload();
       }
     }
+  }
+
+  setInitState(state: any) {
+    const {
+      health,
+      coins,
+      selectedItemSlot,
+      itemSlots,
+      leftHand,
+      rightHand,
+      ammo,
+      killCount,
+      deathCount,
+      isDead,
+    } = state;
+
+    this.health = health;
+    this.coins = coins;
+    this.selectedItemSlot = selectedItemSlot;
+    this.itemSlots = itemSlots;
+
+    this.ammo = ammo;
+    this.killCount = killCount;
+
+    this.isDead = isDead;
+
+    if (leftHand) {
+      const { side, item } = leftHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
+
+    if (rightHand) {
+      const { side, item } = rightHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
+
+    this.handleSelectedItemChange(this.selectedItemSlot);
   }
 
   setState(state: StateData) {
@@ -875,45 +937,45 @@ class ClientPlayer {
 
     this.viewQuaternion = camQuat;
 
-    this.coins = coins;
-    this.color = color;
-    // this.velocity.copy(velocity);
-    this.health = health;
-    this.isDead = isDead;
-    // this.dummy.position.copy(position);
-    // this.keys = keys;
-    this.isSitting = isSitting;
+    // // this.coins = coins;
+    // this.color = color;
+    // // this.velocity.copy(velocity);
+    // // this.health = health;
+    // this.isDead = isDead;
+    // // this.dummy.position.copy(position);
+    // // this.keys = keys;
+    // this.isSitting = isSitting;
 
-    this.controlledObject = controlledObject;
+    // this.controlledObject = controlledObject;
     // NetworkManager.instance.showUI = !this.isDead;
 
-    this.nickname = nickname;
-    this.ammo = ammo;
+    // this.nickname = nickname;
+    // this.ammo = ammo;
 
-    this.killCount = killCount;
+    // this.killCount = killCount;
 
-    if (leftHand) {
-      const { side, item } = leftHand;
+    // if (leftHand) {
+    //   const { side, item } = leftHand;
 
-      if (side && item) {
-        this.handleHandItem(side, item);
-      }
-    }
+    //   if (side && item) {
+    //     this.handleHandItem(side, item);
+    //   }
+    // }
 
-    if (rightHand) {
-      const { side, item } = rightHand;
+    // if (rightHand) {
+    //   const { side, item } = rightHand;
 
-      if (side && item) {
-        this.handleHandItem(side, item);
-      }
-    }
+    //   if (side && item) {
+    //     this.handleHandItem(side, item);
+    //   }
+    // }
 
-    this.itemSlots = itemSlots;
+    // this.itemSlots = itemSlots;
 
     // Initial material setup
     if (!this.hasInit) {
       this.model.traverse((item: any) => {
-        this.handleSelectedItemChange(selectedItemSlot);
+        // this.handleSelectedItemChange(selectedItemSlot);
 
         if (item instanceof THREE.SkinnedMesh) {
           if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
@@ -937,28 +999,30 @@ class ClientPlayer {
       this.dummy.visible = true;
     }
 
-    if (this.selectedItemSlot != selectedItemSlot) {
-      this.handleSelectedItemChange(selectedItemSlot);
-    }
+    // if (this.selectedItemSlot != selectedItemSlot) {
+    //   this.handleSelectedItemChange(selectedItemSlot);
+    // }
   }
 
   handleSelectedItemChange(slot: number) {
     this.selectedItemSlot = slot;
-
     const item = this.itemSlots[this.selectedItemSlot].item;
-
     if (item == undefined) {
       this.removeItem(this.leftHand);
       this.removeItem(this.rightHand);
       return;
     }
-
     if (this.rightHand.item?.name == item.name) return;
-
     if (item.name == "pistol") {
       const mesh = AssetsManager.instance.models.get("pistol")!.scene.clone();
       this.scene.add(mesh);
-      this.rightHand.item = new ClientWeapon("pistol", mesh);
+
+      const pistol = new ClientWeapon("pistol", mesh);
+      pistol.capacity = (item as ClientWeapon).capacity;
+      pistol.ammo = (item as ClientWeapon).ammo;
+      pistol.isReloading = (item as ClientWeapon).isReloading;
+
+      this.rightHand.item = pistol;
     }
   }
 
@@ -1218,15 +1282,27 @@ class ClientPlayer {
     applyHandTransform(this.rightHand);
   }
 
+  setSelectedItemSlot(slot: number) {
+    this.selectedItemSlot = slot;
+
+    this.handleSelectedItemChange(this.selectedItemSlot);
+  }
+
+  setHealth(n: number) {
+    this.health = n;
+
+    if (this.health <= 0) this.isDead = true;
+  }
+
   updateSlots() {
     if (InputManager.instance.isActionJustPressed("slot1"))
-      this.selectedItemSlot = 0;
+      this.setSelectedItemSlot(0);
     else if (InputManager.instance.isActionJustPressed("slot2"))
-      this.selectedItemSlot = 1;
+      this.setSelectedItemSlot(1);
     else if (InputManager.instance.isActionJustPressed("slot3"))
-      this.selectedItemSlot = 2;
+      this.setSelectedItemSlot(2);
     else if (InputManager.instance.isActionJustPressed("slot4"))
-      this.selectedItemSlot = 3;
+      this.setSelectedItemSlot(3);
   }
 
   die() {
@@ -1249,6 +1325,8 @@ class ClientPlayer {
     }
 
     if (this.isDead) return;
+
+    if (this.dummyCube) this.dummyCube.position.copy(this.getPosition());
 
     // if (this.rightHand.item) {
     //   console.log(this.rightHand.item, "item");

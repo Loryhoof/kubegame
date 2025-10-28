@@ -15,7 +15,7 @@ const base = import.meta.env.BASE_URL;
 
 const loader = new THREE.TextureLoader();
 
-type WorldStateData = {
+export type WorldStateData = {
   vehicles: ClientVehicle[];
   npcs: ClientNPC[];
 };
@@ -744,6 +744,7 @@ export default class World {
   }
 
   addPlayer(player: ClientPlayer) {
+    console.log("ADDING PLAYER", player.networkId);
     this.players.set(player.networkId, player);
   }
 

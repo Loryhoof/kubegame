@@ -5,6 +5,14 @@ export default function PatchNotes() {
 
   const notes = [
     {
+      version: "v0.1.42",
+      date: "2025-10-28",
+      changes: [
+        "Reduced bandwidth by ~94.6% (from ~35 KB/s to ~1.9 KB/s) through binary serialization.",
+      ],
+      fixes: [],
+    },
+    {
       version: "v0.1.41",
       date: "2025-10-26",
       changes: ["Added item slots"],
@@ -34,7 +42,7 @@ export default function PatchNotes() {
   ];
 
   return (
-    <div className="h-screen overflow-y-auto bg-[#0c0c0f] text-white p-6">
+    <div className="h-[100dvh] overflow-y-auto bg-[#0c0c0f] text-white p-6">
       <div className="max-w-3xl mx-auto pb-10">
         {/* ✅ Back Button */}
         <button

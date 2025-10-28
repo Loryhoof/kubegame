@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import World from "./World";
+import World, { WorldStateData } from "./World";
 import InputManager from "./InputManager";
 import ClientPlayer, { ItemSlot } from "./ClientPlayer";
 import { AssetsManager } from "./AssetsManager";
@@ -22,6 +22,8 @@ import { USER_SETTINGS_LOCAL_STORE } from "./constants";
 import { Socket } from "socket.io-client";
 import ClientPhysics from "./ClientPhysics";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { deserializeBinaryWorld, deserializePlayer } from "./serializeHelper";
+import ClientNPC from "./ClientNPC";
 
 let world: World | null = null;
 
@@ -194,7 +196,13 @@ function registerSocketEvents(world: World) {
       for (const [id, value] of Object.entries(players)) {
         const player = world.getPlayerById(id);
 
+        console.log(player, "WE DO HAVE PLAYER");
+
         if (player) continue;
+
+        console.log(player, "WE DO NOT HAVE PLAYER");
+
+        console.log(id, "ID OF CREATED PLAYER");
 
         const newPlayer = new ClientPlayer(world, id, "0xffffff", scene);
         world.addPlayer(newPlayer);
@@ -423,34 +431,126 @@ function registerSocketEvents(world: World) {
     onRespawnEvent(player);
   });
 
+  type DataEvent = {
+    id: string;
+    event: string;
+    payload?: any;
+  };
+
+  socket.on("npc-event", (data: DataEvent) => {
+    const { id, event } = data;
+
+    const npc = world.getObjById(id, world.npcs) as ClientNPC;
+
+    if (!npc) return;
+
+    if (event == "init") {
+      npc.setInitState(data.payload);
+    }
+
+    if (event == "update-health") {
+      const value = data.payload.value;
+      npc.setHealth(value);
+    }
+  });
+
+  socket.on("player-event", (data: DataEvent) => {
+    const { id, event } = data;
+
+    const player = world.getPlayerById(id);
+
+    if (!player) return;
+
+    if (event == "respawn") {
+      console.log("RESPAWNING");
+    }
+
+    if (event == "update-coins") {
+      const coins = data.payload.value;
+      player.coins = coins;
+    }
+
+    if (event == "enter-vehicle") {
+      const vehicle = world.getObjById(data.payload.id, world.vehicles);
+      player.controlledObject = vehicle;
+    }
+
+    if (event == "exit-vehicle") {
+      player.controlledObject = null;
+    }
+
+    if (event == "player-init") {
+      player.setInitState(data.payload);
+    }
+
+    if (event == "reload-weapon") {
+      const { amount, ammo, duration } = data.payload;
+
+      const weapon = player.getHandItem() as ClientWeapon;
+
+      if (weapon) {
+        player.ammo = ammo;
+        weapon.isReloading = true;
+
+        setTimeout(() => {
+          weapon.ammo += amount;
+          weapon.isReloading = false;
+        }, duration);
+      }
+    }
+
+    if (event == "update-selected-slot") {
+      const value = data.payload.value;
+      player.setSelectedItemSlot(value);
+    }
+
+    if (event == "update-health") {
+      const value = data.payload.value;
+      player.setHealth(value);
+    }
+  });
   socket.on("addPlayer", (playerId: string) => {
     const newPlayer = new ClientPlayer(world, playerId, "0xffffff", scene);
     world.addPlayer(newPlayer);
+    // console.log(
+    //   "Added remote player",
+    //   playerId,
+    //   newPlayer.model.position.toArray(),
+    //   newPlayer.model.visible,
+    //   scene
+    // );
   });
 
   socket.on("removePlayer", (playerId: string) => {
     world.removePlayer(playerId);
   });
 
-  socket.on("updateData", (data) => {
+  socket.on("updateBinary", (data: ArrayBuffer) => {
     if (!worldIsReady || !NetworkManager.instance.localId) return;
 
-    // fake ping`
+    // ✅ Decode full binary world snapshot (time + players + vehicles + npcs)
+    const { time, players, vehicles, npcs } = deserializeBinaryWorld(data);
 
-    // handle local separately
-    const serverState = data.players[
-      NetworkManager.instance.localId
-    ] as ClientPlayer;
+    // console.log(players, "players");
+    if (!players || Object.keys(players).length === 0) return;
+
+    const localId = NetworkManager.instance.localId;
+
+    // ✅ Reconcile local player
+    const serverState = players[localId];
     if (serverState) {
-      if (DebugState.instance.reconciliation)
+      if (DebugState.instance.reconciliation) {
         reconcileLocalPlayer(serverState as any);
-
-      delete data.players[NetworkManager.instance.localId];
+      }
+      delete players[localId]; // prevent overwriting our predicted local
     }
 
-    if (serverState.controlledObject) {
-      const serverVehicle = data.world.vehicles?.find(
-        (veh: any) => veh.id == serverState.controlledObject!.id
+    const localPlayer = world.getPlayerById(localId);
+
+    if (localPlayer && localPlayer.controlledObject) {
+      // console.log(vehicles, localPlayer.controlledObject);
+      const serverVehicle = vehicles?.find(
+        (veh: any) => veh.id == localPlayer.controlledObject!.id
       );
 
       if (serverVehicle) {
@@ -459,16 +559,71 @@ function registerSocketEvents(world: World) {
       }
     }
 
+    // ✅ Update vehicle + NPC states instantly (same as old updateData)
+    if (vehicles?.length || npcs?.length) {
+      const data: WorldStateData = {
+        vehicles: vehicles as ClientVehicle[],
+        npcs: npcs as any,
+      };
+      world.updateState(data);
+    }
+
+    // console.log(time, players, vehicles, npcs);
+
+    // ✅ Store snapshot for interpolation (players, vehicles, npcs)
+
+    // console.log(players, "PLAYERS", time);
+
     snapshotBuffer.push({
-      time: data.time,
-      players: data.players,
-      vehicles: data.world.vehicles,
-      npcs: data.world.npcs,
+      time: time,
+      players: players,
+      vehicles: vehicles,
+      npcs: npcs,
     });
 
     if (snapshotBuffer.length > 50) snapshotBuffer.shift();
-    world.updateState(data.world);
   });
+
+  // socket.on("updateData", (data) => {
+  //   if (!worldIsReady || !NetworkManager.instance.localId) return;
+
+  //   // fake ping`
+
+  //   // handle local separately
+  //   const serverState = data.players[
+  //     NetworkManager.instance.localId
+  //   ] as ClientPlayer;
+
+  //   if (serverState) {
+  //     if (DebugState.instance.reconciliation) {
+  //       const decoded = deserializePlayer(serverState);
+  //       reconcileLocalPlayer(decoded as any);
+  //     }
+
+  //     delete data.players[NetworkManager.instance.localId];
+  //   }
+
+  //   if (serverState.controlledObject) {
+  //     const serverVehicle = data.world.vehicles?.find(
+  //       (veh: any) => veh.id == serverState.controlledObject!.id
+  //     );
+
+  //     if (serverVehicle) {
+  //       if (DebugState.instance.reconciliation)
+  //         reconcileLocalVehicle(serverVehicle);
+  //     }
+  //   }
+
+  //   snapshotBuffer.push({
+  //     time: data.time,
+  //     players: data.players,
+  //     vehicles: data.world.vehicles,
+  //     npcs: data.world.npcs,
+  //   });
+
+  //   if (snapshotBuffer.length > 50) snapshotBuffer.shift();
+  //   world.updateState(data.world);
+  // });
 }
 
 // ---------------- Reconciliation ----------------
@@ -489,6 +644,8 @@ const ghostMesh = new THREE.Mesh(
 scene.add(ghostMesh);
 
 function reconcileLocalPlayer(serverState: NetworkPlayer) {
+  if (!serverState) return;
+
   if (!worldIsReady || !NetworkManager.instance.localId) return;
 
   const player = world?.getPlayerById(NetworkManager.instance.localId);
@@ -579,7 +736,7 @@ const extrapolationState = new Map<
   string,
   { basePos: THREE.Vector3; lastTime: number }
 >();
-const serverTickMs = 1000 / 30;
+const serverTickMs = 1000 / 20;
 
 function interpolatePlayers() {
   if (!worldIsReady || !NetworkManager.instance.localId) return;
@@ -598,6 +755,7 @@ function interpolatePlayers() {
       break;
     }
   }
+
   if (!older) return;
 
   if (newer) {
@@ -611,6 +769,7 @@ function interpolatePlayers() {
       const pNew = newer.players[id] || pOld;
 
       let netPlayer = world?.getPlayerById(id);
+
       if (id === NetworkManager.instance.localId) continue; // skip local, reconciliation handles it
 
       // if (!netPlayer) {
@@ -917,16 +1076,16 @@ function interpolateNPCs() {
       clientNPC.setState({
         position: targetPos,
         quaternion: targetQuat,
-        color: pNew.color,
-        health: pNew.health,
-        coins: pNew.coins,
+        // color: pNew.color,
+        // health: pNew.health,
+        // coins: pNew.coins,
         velocity: targetVel,
         keys: pNew.keys,
-        isSitting: pNew.isSitting,
-        controlledObject: pNew.controlledObject,
+        // isSitting: pNew.isSitting,
+        // controlledObject: pNew.controlledObject,
 
-        leftHand: pNew.leftHand,
-        rightHand: pNew.rightHand,
+        // leftHand: pNew.leftHand,
+        // rightHand: pNew.rightHand,
         viewQuaternion: new THREE.Quaternion(
           pNew.viewQuaternion.x,
           pNew.viewQuaternion.y,
@@ -1541,6 +1700,7 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
 
   // --- Normal player movement prediction ---
   if (player.controlledObject) {
+    // console.log("Player have controlled object", player.controlledObject);
     const localVehicle = world?.getObjById(
       player.controlledObject.id,
       world.vehicles
@@ -1554,6 +1714,7 @@ function updateLocalPlayer(player: ClientPlayer, delta: number) {
     if (seatIndex === -1) return;
 
     ///updatePlayerSeatTransform(player, localVehicle, seatIndex);
+
     updateLocalVehiclePrediction(localVehicle, delta);
 
     for (

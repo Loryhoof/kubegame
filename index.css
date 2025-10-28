@@ -111,3 +111,24 @@ body {
     transform: translateX(100%);
   }
 }
+
+/* ✅ Minimal modern scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a30;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0c0c0f;
+}
+
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2a2a30 #0c0c0f;
+  }
+}

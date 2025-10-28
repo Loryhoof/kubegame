@@ -177,7 +177,7 @@ export default function HUD() {
       {/* Item Slots */}
       <div className="absolute left-1/2 bottom-2 -translate-x-1/2 z-[1000] user-select-none">
         <div className="flex gap-2">
-          {itemSlots.map((slot, index) => {
+          {itemSlots?.map((slot, index) => {
             const isSelected = index === selectedItemSlot;
             return (
               <div

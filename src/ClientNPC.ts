@@ -407,25 +407,66 @@ class ClientNPC {
     }
   }
 
+  setHealth(n: number) {
+    this.health = n;
+
+    // if (this.health <= 0) this.isDead = true;
+  }
+
+  setInitState(state: any) {
+    const { health, leftHand, rightHand, color } = state;
+
+    this.health = health;
+
+    if (leftHand) {
+      const { side, item } = leftHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
+
+    if (rightHand) {
+      const { side, item } = rightHand;
+
+      if (side && item) {
+        this.handleHandItem(side, item);
+      }
+    }
+
+    if (!this.hasInit) {
+      this.model.traverse((item: any) => {
+        if (item instanceof THREE.SkinnedMesh) {
+          if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
+            item.material = new THREE.MeshStandardMaterial({
+              color: color,
+            });
+          }
+          if (["Leg_R", "Leg_L"].includes(item.name)) {
+            item.material = new THREE.MeshStandardMaterial({
+              color: pantColor,
+            });
+          }
+          if (item.name === "Head") {
+            item.material = new THREE.MeshStandardMaterial({
+              color: skinColor,
+            });
+          }
+
+          this.skinnedMeshes.set(item.name, item);
+        }
+      });
+      this.hasInit = true;
+      this.dummy.visible = true;
+    }
+  }
+
   setState(state: StateData) {
-    const {
-      position,
-      quaternion,
-      color,
-      health,
-      //   coins,
-      velocity,
-      keys,
-      //   isSitting,
-      //   controlledObject,
-      leftHand,
-      rightHand,
-      viewQuaternion,
-    } = state;
+    const { position, quaternion, velocity, keys, viewQuaternion } = state;
 
     // this.coins = coins;
-    this.health = parseInt(health);
-    this.color = color;
+    //this.health = parseInt(health);
+    //this.color = color;
     this.velocity.copy(velocity);
     // this.health = health;
     this.dummy.position.copy(position);
@@ -449,46 +490,23 @@ class ClientNPC {
       0.15
     );
 
-    if (leftHand) {
-      const { side, item } = leftHand;
+    // if (leftHand) {
+    //   const { side, item } = leftHand;
 
-      if (side && item) {
-        this.handleHandItem(side, item);
-      }
-    }
+    //   if (side && item) {
+    //     this.handleHandItem(side, item);
+    //   }
+    // }
 
-    if (rightHand) {
-      const { side, item } = rightHand;
+    // if (rightHand) {
+    //   const { side, item } = rightHand;
 
-      if (side && item) {
-        this.handleHandItem(side, item);
-      }
-    }
+    //   if (side && item) {
+    //     this.handleHandItem(side, item);
+    //   }
+    // }
 
     // Initial material setup
-    if (!this.hasInit) {
-      this.model.traverse((item: any) => {
-        if (item instanceof THREE.SkinnedMesh) {
-          if (["Torso", "Arm_R", "Arm_L"].includes(item.name)) {
-            item.material = new THREE.MeshStandardMaterial({ color });
-          }
-          if (["Leg_R", "Leg_L"].includes(item.name)) {
-            item.material = new THREE.MeshStandardMaterial({
-              color: pantColor,
-            });
-          }
-          if (item.name === "Head") {
-            item.material = new THREE.MeshStandardMaterial({
-              color: skinColor,
-            });
-          }
-
-          this.skinnedMeshes.set(item.name, item);
-        }
-      });
-      this.hasInit = true;
-      this.dummy.visible = true;
-    }
   }
 
   playAnimation(name: string) {
@@ -694,8 +712,6 @@ class ClientNPC {
 
   updateAudio() {
     // Implement audio triggers here if needed
-
-    console.log(this.keys, "keysss");
 
     if (this.keys["shoot"]) {
       const wp = this.rightHand.item as ClientWeapon;
