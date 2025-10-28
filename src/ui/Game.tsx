@@ -16,17 +16,10 @@ import DebugState from "../state/DebugState";
 import MinigameHUD from "./MinigameHUD";
 import LobbyFinder from "./Lobby/LobbyFinder";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { VersionSection } from "./VersionSection";
 
 export type DeathState = {
   kills: number;
-};
-
-const VersionSection = () => {
-  return (
-    <p className="fixed bottom-5 right-5 text-xs z-[9999] text-white user-select-none">
-      v{DebugState.instance.buildVersion}
-    </p>
-  );
 };
 
 const Game = () => {

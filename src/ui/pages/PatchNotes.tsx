@@ -5,6 +5,12 @@ export default function PatchNotes() {
 
   const notes = [
     {
+      version: "v0.1.43",
+      date: "2025-10-29",
+      changes: ["Added guest accounts"],
+      fixes: [],
+    },
+    {
       version: "v0.1.42",
       date: "2025-10-28",
       changes: [
