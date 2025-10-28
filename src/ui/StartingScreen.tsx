@@ -137,6 +137,8 @@ const StartingScreen = () => {
 
       // re-run auth validation (will set authenticated=true)
       await revalidate();
+
+      GameManager.instance.joinWorld();
     } catch (err) {
       console.error("Guest login error:", err);
       setLoginError(true);
