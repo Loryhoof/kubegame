@@ -22,7 +22,11 @@ import { USER_SETTINGS_LOCAL_STORE } from "./constants";
 import { Socket } from "socket.io-client";
 import ClientPhysics from "./ClientPhysics";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { deserializeBinaryWorld, deserializePlayer } from "./serializeHelper";
+import {
+  deserializeBinaryWorld,
+  deserializePlayer,
+  serializeBinaryPlayerInput,
+} from "./serializeHelper";
 import ClientNPC from "./ClientNPC";
 
 let world: World | null = null;
@@ -1407,19 +1411,34 @@ function updateLocalCharacterPrediction(player: ClientPlayer, delta: number) {
   while (accumulator >= FIXED_DT) {
     // --- 1) Collect input & predict instantly ---
     const actions = InputManager.instance.getState();
-    const input = {
-      type: "character",
+    // const input = {
+    //   type: "character",
+    //   seq: inputSeq++,
+    //   dt: FIXED_DT,
+    //   actions: actions,
+    //   camQuat: camera.quaternion.clone(),
+    //   camPos: camera.position.clone(),
+    // };
+    // pendingInputs.push(input);
+    // socket?.emit("playerInput", input);
+
+    const buffer = serializeBinaryPlayerInput({
       seq: inputSeq++,
       dt: FIXED_DT,
-      actions: actions,
-      camQuat: camera.quaternion.clone(),
-      camPos: camera.position.clone(),
-    };
-    pendingInputs.push(input);
-    socket?.emit("playerInput", input);
+      actions,
+      camQuat: [
+        camera.quaternion.x,
+        camera.quaternion.y,
+        camera.quaternion.z,
+        camera.quaternion.w,
+      ],
+      camPos: camera.position,
+    });
+
+    socket?.emit("playerInput", buffer);
 
     // Predict immediately for responsiveness
-    playerObject.predictMovement(FIXED_DT, actions, input.camQuat);
+    playerObject.predictMovement(FIXED_DT, actions, camera.quaternion.clone());
     accumulator -= FIXED_DT;
 
     // --- 2) Reconciliation ---

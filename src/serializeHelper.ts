@@ -1,3 +1,5 @@
+import { Vector3 } from "three";
+
 export const INPUT_BITS = {
   moveForward: 1 << 0,
   moveBackward: 1 << 1,
@@ -18,6 +20,14 @@ export const INPUT_BITS = {
 } as const;
 
 export type InputKey = keyof typeof INPUT_BITS;
+
+export function encodeKeys(keys: Record<InputKey, boolean>): number {
+  let mask = 0;
+  (Object.keys(INPUT_BITS) as InputKey[]).forEach((key) => {
+    if (keys[key]) mask |= INPUT_BITS[key];
+  });
+  return mask;
+}
 
 export function decodeKeys(mask: number): Record<InputKey, boolean> {
   const result = {} as Record<InputKey, boolean>;
@@ -377,4 +387,52 @@ export function deserializePlayer(data: any) {
       w: data.vq[3],
     },
   };
+}
+
+export function serializeBinaryPlayerInput(input: any): ArrayBuffer {
+  // Structure:
+  // 0–1   uint16 action bitmask
+  // 2–3   uint16 sequence number
+  // 4     uint8  dt (0–255, quantized)
+  // 5–20  float32[4] camera quaternion
+  // 21–32 float32[3] camera position
+
+  const buffer = new ArrayBuffer(33);
+  const view = new DataView(buffer);
+  let offset = 0;
+
+  // --- Action Bitmask ---
+  const mask = encodeKeys(input.actions);
+  view.setUint16(offset, mask);
+  offset += 2;
+
+  // --- Sequence ---
+  view.setUint16(offset, input.seq);
+  offset += 2;
+
+  // --- dt (quantized to milliseconds * 255 max) ---
+  const dtByte = Math.min(Math.round(input.dt * 255), 255);
+  view.setUint8(offset, dtByte);
+  offset += 1;
+
+  // --- camQuat ---
+  const q = Array.isArray(input.camQuat)
+    ? input.camQuat
+    : [input.camQuat.x, input.camQuat.y, input.camQuat.z, input.camQuat.w];
+  for (let i = 0; i < 4; i++) {
+    view.setFloat32(offset, q[i]);
+    offset += 4;
+  }
+
+  // --- camPos ---
+  const p =
+    input.camPos instanceof Vector3
+      ? [input.camPos.x, input.camPos.y, input.camPos.z]
+      : [input.camPos.x, input.camPos.y, input.camPos.z];
+  for (let i = 0; i < 3; i++) {
+    view.setFloat32(offset, p[i]);
+    offset += 4;
+  }
+
+  return buffer;
 }
