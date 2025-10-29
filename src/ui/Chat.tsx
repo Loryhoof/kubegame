@@ -147,6 +147,21 @@ export default function Chat() {
         socket.emit("user-command", { command: "stats" });
       },
     },
+    coinflip: {
+      description: "Flip a coin to double your coins",
+      usage: "/coinflip <amount>",
+      execute: (args) => {
+        const value = args[0];
+        if (!value || value.length === 0) {
+          addSystemMessage("Please enter coinflip amount");
+          return;
+        }
+        socket.emit("user-command", {
+          command: "coinflip",
+          value: value,
+        });
+      },
+    },
     help: {
       description: "List all commands",
       usage: "/help",
