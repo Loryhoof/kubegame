@@ -5,6 +5,12 @@ export default function PatchNotes() {
 
   const notes = [
     {
+      version: "v0.1.45",
+      date: "2025-11-1",
+      changes: ["Added admin panel"],
+      fixes: [],
+    },
+    {
       version: "v0.1.44",
       date: "2025-10-29",
       changes: ["Added /coinflip minigame"],
