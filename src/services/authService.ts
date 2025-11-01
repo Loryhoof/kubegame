@@ -74,3 +74,26 @@ export async function handleValidateJWT(token?: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function handleGetUser(token: string): Promise<any> {
+  if (!token) return null;
+
+  try {
+    const res = await fetch(
+      `${(import.meta as any).env.VITE_SERVER_URL}/auth/me`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = res.json();
+
+    return data;
+  } catch (err) {
+    console.error("JWT validation failed:", err);
+    return null;
+  }
+}
